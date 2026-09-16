@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -11,7 +12,9 @@ import (
 
 // Mock Patient Repository
 type mockPatientRepo struct {
-	patients []domain.Patient
+	patients  []domain.Patient
+	searchErr error
+	createErr error
 }
 
 func newMockPatientRepo() *mockPatientRepo {
@@ -21,6 +24,9 @@ func newMockPatientRepo() *mockPatientRepo {
 }
 
 func (m *mockPatientRepo) Search(hospitalID uuid.UUID, query *domain.PatientSearchQuery) ([]domain.Patient, error) {
+	if m.searchErr != nil {
+		return nil, m.searchErr
+	}
 	results := make([]domain.Patient, 0)
 	for _, p := range m.patients {
 		// Strict hospital_id data isolation
@@ -52,6 +58,9 @@ func (m *mockPatientRepo) Search(hospitalID uuid.UUID, query *domain.PatientSear
 }
 
 func (m *mockPatientRepo) Create(p *domain.Patient) error {
+	if m.createErr != nil {
+		return m.createErr
+	}
 	m.patients = append(m.patients, *p)
 	return nil
 }
@@ -85,10 +94,14 @@ func (m *mockPatientRepo) FindByHN(hospitalID uuid.UUID, hn string) (*domain.Pat
 
 // Mock HIS Client
 type mockHISClient struct {
-	patients map[string]*domain.HospitalAPatientResponse
+	patients  map[string]*domain.HospitalAPatientResponse
+	searchErr error
 }
 
 func (m *mockHISClient) SearchPatient(id string) (*domain.HospitalAPatientResponse, error) {
+	if m.searchErr != nil {
+		return nil, m.searchErr
+	}
 	if p, ok := m.patients[id]; ok {
 		return p, nil
 	}
@@ -112,6 +125,7 @@ func TestPatientUseCase_DataIsolationAndHIS(t *testing.T) {
 		HospitalID:  hospitalA_ID,
 		PatientHN:   "HN-A-001",
 		NationalID:  "1100100111111",
+		PassportID:  "PA123456",
 		FirstNameTH: "สมชาย",
 		LastNameTH:  "ใจดี",
 		FirstNameEN: "Somchai",
@@ -229,3 +243,77 @@ func TestPatientUseCase_DataIsolationAndHIS(t *testing.T) {
 	assert.Len(t, resAlreadyInDB, 1)
 }
 
+func TestPatientUseCase_EdgeCasesAndErrors(t *testing.T) {
+	hospitalID := uuid.New()
+
+	// 1. Repo Search Error
+	errRepo := newMockPatientRepo()
+	errRepo.searchErr = errors.New("database connection failed")
+	uc1 := NewPatientUseCase(errRepo, nil)
+	_, err := uc1.SearchPatients(hospitalID, &domain.PatientSearchQuery{NationalID: "123"})
+	assert.Error(t, err)
+	assert.Equal(t, "database connection failed", err.Error())
+
+	// 2. HIS Search Error (should log warning and continue without breaking)
+	repo := newMockPatientRepo()
+	errHISClient := &mockHISClient{searchErr: errors.New("upstream service unavailable")}
+	uc2 := NewPatientUseCase(repo, errHISClient)
+	res, err := uc2.SearchPatients(hospitalID, &domain.PatientSearchQuery{NationalID: "999"})
+	assert.NoError(t, err)
+	assert.Empty(t, res)
+
+	// 3. HIS Patient already in list by NationalID
+	repoWithNational := newMockPatientRepo()
+	_ = repoWithNational.Create(&domain.Patient{
+		ID:         uuid.New(),
+		HospitalID: hospitalID,
+		NationalID: "NAT_DUP",
+	})
+	dupHisClientNational := &mockHISClient{
+		patients: map[string]*domain.HospitalAPatientResponse{
+			"SEARCH_NAT": {
+				NationalID: "NAT_DUP",
+			},
+		},
+	}
+	uc3 := NewPatientUseCase(repoWithNational, dupHisClientNational)
+	res3, err3 := uc3.SearchPatients(hospitalID, &domain.PatientSearchQuery{PassportID: "SEARCH_NAT"})
+	assert.NoError(t, err3)
+	assert.Len(t, res3, 1)
+
+	// 4. HIS Patient already in list by PassportID
+	repoWithPassport := newMockPatientRepo()
+	_ = repoWithPassport.Create(&domain.Patient{
+		ID:         uuid.New(),
+		HospitalID: hospitalID,
+		PassportID: "PASS_DUP",
+	})
+	dupHisClientPassport := &mockHISClient{
+		patients: map[string]*domain.HospitalAPatientResponse{
+			"SEARCH_PASS": {
+				PassportID: "PASS_DUP",
+			},
+		},
+	}
+	uc4 := NewPatientUseCase(repoWithPassport, dupHisClientPassport)
+	res4, err4 := uc4.SearchPatients(hospitalID, &domain.PatientSearchQuery{NationalID: "SEARCH_PASS"})
+	assert.NoError(t, err4)
+	assert.Len(t, res4, 1)
+
+	// 5. Repo Create Error when persisting HIS Patient (saveErr != nil fallback branch)
+	repoFailCreate := newMockPatientRepo()
+	repoFailCreate.createErr = errors.New("db disk full")
+	hisClientNew := &mockHISClient{
+		patients: map[string]*domain.HospitalAPatientResponse{
+			"NEW_ID": {
+				PatientHN:  "HN-NEW",
+				NationalID: "NEW_ID",
+			},
+		},
+	}
+	uc5 := NewPatientUseCase(repoFailCreate, hisClientNew)
+	res5, err5 := uc5.SearchPatients(hospitalID, &domain.PatientSearchQuery{NationalID: "NEW_ID"})
+	assert.NoError(t, err5)
+	assert.Len(t, res5, 1)
+	assert.Equal(t, "HN-NEW", res5[0].PatientHN)
+}

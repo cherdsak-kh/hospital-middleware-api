@@ -33,3 +33,19 @@ func TestLoadConfigAndGetDSN(t *testing.T) {
 	assert.Contains(t, dsn, "user=agnos_user")
 	assert.Contains(t, dsn, "dbname=hospital_agnos")
 }
+
+func TestLoadConfig_InvalidExpiryAndEmptyEnvs(t *testing.T) {
+	// Set invalid integer for expiry to trigger error fallback branch
+	os.Setenv("JWT_EXPIRY_HOURS", "not_a_valid_number")
+	// Set empty string to trigger exists && value == "" fallback branch
+	os.Setenv("PORT", "")
+	// Unset key to trigger !exists fallback
+	os.Unsetenv("DB_HOST")
+
+	cfg, err := LoadConfig()
+	assert.NoError(t, err)
+	assert.NotNil(t, cfg)
+	assert.Equal(t, 24, cfg.JWTExpiryHours)
+	assert.Equal(t, "5000", cfg.Port)
+	assert.Equal(t, "localhost", cfg.DBHost)
+}

@@ -3,6 +3,7 @@ package utils
 import (
 	"testing"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
@@ -38,5 +39,13 @@ func TestJWTGenerationAndValidation(t *testing.T) {
 	assert.NoError(t, err)
 	_, errExpired := ValidateToken(expiredToken, secret)
 	assert.Error(t, errExpired)
-}
 
+	// Negative test: Signing algorithm not HMAC (SigningMethodNone)
+	noneTokenObj := jwt.NewWithClaims(jwt.SigningMethodNone, &JWTClaims{
+		StaffID:  staffID,
+		Username: username,
+	})
+	noneTokenString, _ := noneTokenObj.SignedString(jwt.UnsafeAllowNoneSignatureType)
+	_, errNone := ValidateToken(noneTokenString, secret)
+	assert.Error(t, errNone)
+}

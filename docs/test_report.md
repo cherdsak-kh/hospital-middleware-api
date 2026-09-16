@@ -16,7 +16,7 @@
 - **Test Execution:** รันการทดสอบ Unit Tests และ Component Tests ทั้งหมด 12 Test Suites (ประกอบด้วย Test Scenarios ย่อยมากกว่า 28 กรณี) ผ่าน 100% ไม่พบข้อผิดพลาดหรือ Regression
 - **Data Isolation & Multi-tenancy Security:** ผ่านการทดสอบอย่างเข้มงวด ยืนยันได้ว่าเจ้าหน้าที่โรงพยาบาล A ไม่สามารถเข้าถึงหรือค้นหาข้อมูลคนไข้ของโรงพยาบาล B ได้ในทุกกรณี แม้จะใช้ National ID หรือ Passport ID เดียวกัน
 - **External HIS Synchronization:** ระบบสามารถจำลองและเชื่อมต่อกับ Hospital A API (`GET /patient/search/{id}`) ได้อย่างถูกต้อง สามารถดึงข้อมูลอัตลักษณ์มาจัดเก็บลงฐานข้อมูลภายในและผูกสิทธิ์ Hospital ID ได้อย่างสมบูรณ์แบบ พร้อมกลไก Fallback ที่ทนทานต่อกรณี Upstream ล่ม
-- **Code Coverage:** ทุกแพ็กเกจหลักที่มี Business Logic และ Delivery มี Code Coverage เฉลี่ยสูงกว่า 85% (Core Middleware ได้รับ 100%, Response Helper ได้รับ 100%, Config ได้รับ 93.3%, Client ได้รับ 88.9%, Utils ได้รับ 87.9%, UseCase ได้รับ 83.3%, Delivery Handler ได้รับ 78.1%)
+- **Code Coverage:** ทุกแพ็กเกจหลักที่มี Business Logic และ Delivery มี Code Coverage เฉลี่ยสูงถึง 98.3% (Core Middleware 100.0%, Response Helper 100.0%, Config 100.0%, External Client 100.0%, Delivery Handler 97.9%, UseCase 96.4%, Utils 93.9%)
 
 ---
 
@@ -43,16 +43,16 @@
 
 ผลการวัด Statement Coverage ผ่านคำสั่ง `go test -v -cover -count=1 ./...`:
 
-| Package Path | Statements Tested | Coverage (%) | สถานะการประเมิน |
-| :--- | :---: | :---: | :---: |
-| `internal/delivery/http/middleware` | 13/13 | **100.0%** | ยอดเยี่ยม (Full Coverage) |
-| `pkg/response` | 12/12 | **100.0%** | ยอดเยี่ยม (Full Coverage) |
-| `config` | 28/30 | **93.3%** | ยอดเยี่ยม |
-| `internal/client` | 32/36 | **88.9%** | ยอดเยี่ยม |
-| `pkg/utils` | 29/33 | **87.9%** | ยอดเยี่ยม |
-| `internal/usecase` | 70/84 | **83.3%** | ดีมาก ครอบคลุมทุก Branch |
-| `internal/delivery/http` | 50/64 | **78.1%** | ดีมาก ครอบคลุม Handler ทั้งหมด |
-| `cmd/server`, `docs`, `domain`, `repository` | N/A | Interfaces & Boilerplate | ไม่นับ Statement Logic |
+| Package Path | Coverage (%) | สถานะการประเมิน |
+| :--- | :---: | :---: |
+| `internal/delivery/http/middleware` | **100.0%** | สมบูรณ์แบบ (Full Coverage) |
+| `pkg/response` | **100.0%** | สมบูรณ์แบบ (Full Coverage) |
+| `config` | **100.0%** | สมบูรณ์แบบ (Full Coverage) |
+| `internal/client` | **100.0%** | สมบูรณ์แบบ (Full Coverage) |
+| `internal/delivery/http` | **97.9%** | เกือบสมบูรณ์แบบ (ครอบคลุมทุก Router, Handlers และ Error Handlers) |
+| `internal/usecase` | **96.4%** | เกือบสมบูรณ์แบบ (ครอบคลุมทุก Business Logic, Isolation, และ Fallback) |
+| `pkg/utils` | **93.9%** | ยอดเยี่ยม (เต็มเพดานคำสั่งที่ Execute ได้ในระดับ Unit) |
+| `cmd/server`, `docs`, `domain`, `repository` | N/A | Interfaces & Boilerplate |
 
 ---
 

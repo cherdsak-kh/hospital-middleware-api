@@ -35,11 +35,20 @@ func TestHISClient_SearchPatient(t *testing.T) {
 		case "/patient/search/ERROR500":
 			w.WriteHeader(http.StatusInternalServerError)
 
+		case "/patient/search/BADJSON":
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("{invalid-json-content}"))
+
 		default:
 			w.WriteHeader(http.StatusBadRequest)
 		}
 	}))
 	defer mockServer.Close()
+
+	// Test default timeout fallback when timeout <= 0
+	clientDefaultTimeout := NewHISClient(mockServer.URL, 0)
+	assert.NotNil(t, clientDefaultTimeout)
 
 	client := NewHISClient(mockServer.URL, 2*time.Second)
 
@@ -64,4 +73,27 @@ func TestHISClient_SearchPatient(t *testing.T) {
 	pErr, err500 := client.SearchPatient("ERROR500")
 	assert.Error(t, err500)
 	assert.Nil(t, pErr)
+
+	// 5. Negative test: Malformed JSON response
+	pBadJSON, errBadJSON := client.SearchPatient("BADJSON")
+	assert.Error(t, errBadJSON)
+	assert.Nil(t, pBadJSON)
+	assert.Contains(t, errBadJSON.Error(), "failed to decode HIS response")
+
+	// 6. Negative test: Network connection failure (closed server)
+	closedServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	closedURL := closedServer.URL
+	closedServer.Close() // Close immediately to trigger connection refused
+	clientClosed := NewHISClient(closedURL, 1*time.Second)
+	pConnErr, errConn := clientClosed.SearchPatient("1100100111111")
+	assert.Error(t, errConn)
+	assert.Nil(t, pConnErr)
+	assert.Contains(t, errConn.Error(), "HIS request failed")
+
+	// 7. Negative test: Invalid URL triggering http.NewRequest error
+	clientInvalidURL := NewHISClient("http://\x7f-invalid-url", 1*time.Second)
+	pReqErr, errReq := clientInvalidURL.SearchPatient("1100100111111")
+	assert.Error(t, errReq)
+	assert.Nil(t, pReqErr)
+	assert.Contains(t, errReq.Error(), "failed to create HIS request")
 }

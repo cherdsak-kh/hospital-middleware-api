@@ -3,6 +3,7 @@ package http
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -17,13 +18,14 @@ import (
 )
 
 // Mock Staff UseCase
-type mockStaffUseCase struct {
-	staffs map[string]*domain.Staff
-}
+type mockStaffUseCase struct{}
 
 func (m *mockStaffUseCase) CreateStaff(req *domain.StaffCreateRequest) (*domain.Staff, error) {
 	if req.Username == "duplicate_user" {
 		return nil, usecase.ErrUsernameTaken
+	}
+	if req.Username == "server_error" {
+		return nil, errors.New("database connection failure")
 	}
 	s := &domain.Staff{
 		ID:         uuid.New(),
@@ -41,6 +43,9 @@ func (m *mockStaffUseCase) LoginStaff(req *domain.StaffLoginRequest) (*domain.St
 	if req.Hospital == "wrong_hospital" {
 		return nil, usecase.ErrHospitalNotFound
 	}
+	if req.Username == "server_error" {
+		return nil, errors.New("internal server error in staff login")
+	}
 	return &domain.StaffLoginResponse{
 		Token:        "mock-jwt-token-12345",
 		StaffID:      uuid.New(),
@@ -54,6 +59,9 @@ func (m *mockStaffUseCase) LoginStaff(req *domain.StaffLoginRequest) (*domain.St
 type mockPatientUseCase struct{}
 
 func (m *mockPatientUseCase) SearchPatients(hospitalID uuid.UUID, query *domain.PatientSearchQuery) ([]domain.PatientResponse, error) {
+	if query != nil && query.NationalID == "FAIL_USECASE" {
+		return nil, errors.New("database query failed in usecase")
+	}
 	return []domain.PatientResponse{
 		{
 			ID:          uuid.New(),
@@ -82,6 +90,22 @@ func setupTestRouter() (*gin.Engine, string, uuid.UUID, uuid.UUID) {
 	hospitalID := uuid.New()
 
 	return router, jwtSecret, staffID, hospitalID
+}
+
+func TestRouter_OptionsAndProductionMode(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	prodCfg := &config.Config{
+		JWTSecret: "secret",
+		AppEnv:    "production",
+	}
+	prodRouter := SetupRouter(prodCfg, NewStaffHandler(&mockStaffUseCase{}), NewPatientHandler(&mockPatientUseCase{}))
+	assert.NotNil(t, prodRouter)
+
+	// Test OPTIONS request (CORS Preflight)
+	reqOptions, _ := http.NewRequest(http.MethodOptions, "/patient/search", nil)
+	wOptions := httptest.NewRecorder()
+	prodRouter.ServeHTTP(wOptions, reqOptions)
+	assert.Equal(t, http.StatusNoContent, wOptions.Code)
 }
 
 func TestRootAndHealthEndpoints(t *testing.T) {
@@ -140,6 +164,19 @@ func TestStaffHandler_CreateStaff(t *testing.T) {
 	wDup := httptest.NewRecorder()
 	router.ServeHTTP(wDup, reqDup)
 	assert.Equal(t, http.StatusConflict, wDup.Code)
+
+	// 4. Negative: Internal server error (500)
+	errPayload := domain.StaffCreateRequest{
+		Username: "server_error",
+		Password: "Password123",
+		Hospital: "Hospital A",
+	}
+	errBody, _ := json.Marshal(errPayload)
+	reqErr, _ := http.NewRequest(http.MethodPost, "/staff/create", bytes.NewBuffer(errBody))
+	reqErr.Header.Set("Content-Type", "application/json")
+	wErr := httptest.NewRecorder()
+	router.ServeHTTP(wErr, reqErr)
+	assert.Equal(t, http.StatusInternalServerError, wErr.Code)
 }
 
 func TestStaffHandler_LoginStaff(t *testing.T) {
@@ -172,7 +209,33 @@ func TestStaffHandler_LoginStaff(t *testing.T) {
 	router.ServeHTTP(wWrong, reqWrong)
 	assert.Equal(t, http.StatusUnauthorized, wWrong.Code)
 
-	// 3. Negative: Malformed body (400)
+	// 3. Negative: Hospital not found (401)
+	wrongHospPayload := domain.StaffLoginRequest{
+		Username: "valid_user",
+		Password: "Password123",
+		Hospital: "wrong_hospital",
+	}
+	wrongHospBody, _ := json.Marshal(wrongHospPayload)
+	reqHosp, _ := http.NewRequest(http.MethodPost, "/staff/login", bytes.NewBuffer(wrongHospBody))
+	reqHosp.Header.Set("Content-Type", "application/json")
+	wHosp := httptest.NewRecorder()
+	router.ServeHTTP(wHosp, reqHosp)
+	assert.Equal(t, http.StatusUnauthorized, wHosp.Code)
+
+	// 4. Negative: Internal server error on login (500)
+	errPayload := domain.StaffLoginRequest{
+		Username: "server_error",
+		Password: "Password123",
+		Hospital: "Hospital A",
+	}
+	errBody, _ := json.Marshal(errPayload)
+	reqErr, _ := http.NewRequest(http.MethodPost, "/staff/login", bytes.NewBuffer(errBody))
+	reqErr.Header.Set("Content-Type", "application/json")
+	wErr := httptest.NewRecorder()
+	router.ServeHTTP(wErr, reqErr)
+	assert.Equal(t, http.StatusInternalServerError, wErr.Code)
+
+	// 5. Negative: Malformed body (400)
 	reqBad, _ := http.NewRequest(http.MethodPost, "/staff/login", bytes.NewBuffer([]byte("{bad-json}")))
 	reqBad.Header.Set("Content-Type", "application/json")
 	wBad := httptest.NewRecorder()
@@ -208,9 +271,60 @@ func TestPatientHandler_SearchPatients(t *testing.T) {
 	assert.Equal(t, http.StatusOK, wPost.Code)
 	assert.Contains(t, wPost.Body.String(), "HN-TEST-001")
 
-	// 3. Negative: Missing token (401 Unauthorized)
+	// 3. POST /patient/search with malformed JSON body (falls back to query parameters)
+	reqPostBadJSON, _ := http.NewRequest(http.MethodPost, "/patient/search?national_id=1100100111111", bytes.NewBuffer([]byte("{broken}")))
+	reqPostBadJSON.Header.Set("Authorization", "Bearer "+token)
+	reqPostBadJSON.Header.Set("Content-Type", "application/json")
+	wPostBadJSON := httptest.NewRecorder()
+	router.ServeHTTP(wPostBadJSON, reqPostBadJSON)
+	assert.Equal(t, http.StatusOK, wPostBadJSON.Code)
+
+	// 4. Negative: Usecase error returns 500
+	reqFail, _ := http.NewRequest(http.MethodGet, "/patient/search?national_id=FAIL_USECASE", nil)
+	reqFail.Header.Set("Authorization", "Bearer "+token)
+	wFail := httptest.NewRecorder()
+	router.ServeHTTP(wFail, reqFail)
+	assert.Equal(t, http.StatusInternalServerError, wFail.Code)
+
+	// 5. Negative: Missing token (401 Unauthorized)
 	reqNoAuth, _ := http.NewRequest(http.MethodGet, "/patient/search?national_id=1100100111111", nil)
 	wNoAuth := httptest.NewRecorder()
 	router.ServeHTTP(wNoAuth, reqNoAuth)
 	assert.Equal(t, http.StatusUnauthorized, wNoAuth.Code)
+}
+
+func TestPatientHandler_ContextHospitalIDVariations(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	patientHandler := NewPatientHandler(&mockPatientUseCase{})
+
+	// 1. Missing hospital_id in context
+	w1 := httptest.NewRecorder()
+	c1, _ := gin.CreateTestContext(w1)
+	c1.Request, _ = http.NewRequest(http.MethodGet, "/patient/search", nil)
+	patientHandler.SearchPatients(c1)
+	assert.Equal(t, http.StatusUnauthorized, w1.Code)
+
+	// 2. String valid hospital_id in context
+	w2 := httptest.NewRecorder()
+	c2, _ := gin.CreateTestContext(w2)
+	c2.Request, _ = http.NewRequest(http.MethodGet, "/patient/search", nil)
+	c2.Set("hospital_id", uuid.New().String())
+	patientHandler.SearchPatients(c2)
+	assert.Equal(t, http.StatusOK, w2.Code)
+
+	// 3. String invalid UUID in context
+	w3 := httptest.NewRecorder()
+	c3, _ := gin.CreateTestContext(w3)
+	c3.Request, _ = http.NewRequest(http.MethodGet, "/patient/search", nil)
+	c3.Set("hospital_id", "invalid-uuid-string")
+	patientHandler.SearchPatients(c3)
+	assert.Equal(t, http.StatusUnauthorized, w3.Code)
+
+	// 4. Unknown type (int) in context
+	w4 := httptest.NewRecorder()
+	c4, _ := gin.CreateTestContext(w4)
+	c4.Request, _ = http.NewRequest(http.MethodGet, "/patient/search", nil)
+	c4.Set("hospital_id", 12345)
+	patientHandler.SearchPatients(c4)
+	assert.Equal(t, http.StatusUnauthorized, w4.Code)
 }
