@@ -84,7 +84,7 @@ docker-compose up -d --build
 
 - **Nginx Entry Point:** `http://localhost/` (Port 80)
 - **Go API Direct:** `http://localhost:8080/` (Port 8080)
-- **PostgreSQL Database:** `localhost:5432`
+- **PostgreSQL Database:** `localhost:5433` (พอร์ต Host 5433 เพื่อไม่ให้ชนกับฐานข้อมูลเดิม)
 
 ตรวจสอบสถานะระบบ:
 ```bash
