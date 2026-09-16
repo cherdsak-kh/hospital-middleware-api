@@ -1,4 +1,4 @@
-# Hospital Middleware API (`hospital-middleware-api`)
+# Hospital Middleware API
 
 A secure, enterprise-grade middleware API service developed in Go for querying and synchronizing patient records across Hospital Information Systems (HIS) and internal databases, featuring strict multi-tenancy data isolation in accordance with Agnos Health requirements.
 
@@ -115,23 +115,29 @@ docker compose ps
 
 ## 5. Running Unit Tests
 
-The test suite covers both positive and negative test scenarios using mock repositories and mock HTTP clients:
+The test suite covers both positive and negative test scenarios using mock repositories, mock HTTP clients, and mock HTTP servers with high statement coverage:
 
 ```bash
-go test -v ./...
+go test -v -cover ./...
 ```
 
 ### Test Suite Overview:
+- `config`: Tests environment variable parsing, default fallback values, and PostgreSQL DSN string formatting.
+- `internal/client`: Tests external Hospital A HIS client with positive lookup, 404 not found, and 500 server error handling using `httptest.Server`.
+- `internal/delivery/http`: Tests HTTP handlers for `/staff/create`, `/staff/login`, `/patient/search`, and root/health routes.
+- `internal/delivery/http/middleware`: Validates authorization header presence, bearer token parsing, expired token rejection, and context injection (100% coverage).
+- `internal/usecase`:
+  - `TestStaffUseCase_CreateAndLogin`: Validates staff account creation, duplicate username rejection (409), credential matching, and cross-hospital login validation.
+  - `TestPatientUseCase_DataIsolationAndHIS`: Validates intra-hospital patient searches, **strictly verifies hospital-level data isolation boundaries** (National ID and Passport ID), and tests external HIS synchronization fallback.
+- `pkg/response`: Validates standardized API response formatting for success and error scenarios (100% coverage).
 - `pkg/utils`:
   - `TestPasswordHashing`: Verifies password hashing and invalid password rejection using bcrypt.
-  - `TestJWTGenerationAndValidation`: Validates JWT token generation, claims extraction, and tampering detection.
-- `internal/delivery/http/middleware`:
-  - `TestAuthMiddleware`: Validates authorization header presence, bearer token parsing, and token rejection scenarios.
-- `internal/usecase`:
-  - `TestStaffUseCase_CreateAndLogin`: Validates staff account creation, duplicate username rejection, credential matching, and cross-hospital login validation.
-  - `TestPatientUseCase_DataIsolationAndHIS`: Validates intra-hospital patient searches, **strictly verifies hospital-level data isolation boundaries**, and tests external HIS synchronization fallback.
+  - `TestJWTGenerationAndValidation`: Validates JWT token generation, claims extraction, expired token rejection, and tampering detection.
+
+> For complete testing matrix, coverage analysis, and Data Isolation Proof of Concept, refer to [QA Test Report](docs/test_report.md).
 
 ---
+
 
 ## 6. API Specifications & Interactive Documentation
 

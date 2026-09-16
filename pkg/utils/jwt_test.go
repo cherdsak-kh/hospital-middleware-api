@@ -32,4 +32,11 @@ func TestJWTGenerationAndValidation(t *testing.T) {
 	// Negative test: Malformed token
 	_, errMalformed := ValidateToken("invalid.token.structure", secret)
 	assert.Error(t, errMalformed)
+
+	// Negative test: Expired token
+	expiredToken, err := GenerateToken(staffID, hospitalID, username, secret, -2)
+	assert.NoError(t, err)
+	_, errExpired := ValidateToken(expiredToken, secret)
+	assert.Error(t, errExpired)
 }
+

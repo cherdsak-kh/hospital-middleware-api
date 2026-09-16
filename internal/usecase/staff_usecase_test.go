@@ -173,4 +173,28 @@ func TestStaffUseCase_CreateAndLogin(t *testing.T) {
 	}
 	_, wrongHospErr := uc.LoginStaff(wrongHospReq)
 	assert.Error(t, wrongHospErr)
+
+	// 6. Negative Test: Non-existent user login
+	nonExistentReq := &domain.StaffLoginRequest{
+		Username: "staff_ghost",
+		Password: "SecurePassword123",
+		Hospital: "Hospital A",
+	}
+	_, ghostErr := uc.LoginStaff(nonExistentReq)
+	assert.Error(t, ghostErr)
+	assert.Equal(t, ErrInvalidAuth, ghostErr)
+
+	// 7. Negative Test: Empty username registration
+	emptyUserReq := &domain.StaffCreateRequest{
+		Username: "   ",
+		Password: "SecurePassword123",
+		Hospital: "Hospital A",
+	}
+	_, emptyUserErr := uc.CreateStaff(emptyUserReq)
+	assert.Error(t, emptyUserErr)
+
+	// 8. Positive Test: NewStaffUseCase with default expiry fallback
+	defaultUC := NewStaffUseCase(staffRepo, hospitalRepo, jwtSecret, 0)
+	assert.NotNil(t, defaultUC)
 }
+

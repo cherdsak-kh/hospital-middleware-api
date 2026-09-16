@@ -62,4 +62,14 @@ func TestAuthMiddleware(t *testing.T) {
 	wInvalidToken := httptest.NewRecorder()
 	r.ServeHTTP(wInvalidToken, reqInvalidToken)
 	assert.Equal(t, http.StatusUnauthorized, wInvalidToken.Code)
+
+	// Negative test 4: Expired token
+	expiredToken, err := utils.GenerateToken(staffID, hospitalID, "staff_user", secret, -1)
+	assert.NoError(t, err)
+	reqExpired, _ := http.NewRequest(http.MethodGet, "/protected", nil)
+	reqExpired.Header.Set("Authorization", "Bearer "+expiredToken)
+	wExpired := httptest.NewRecorder()
+	r.ServeHTTP(wExpired, reqExpired)
+	assert.Equal(t, http.StatusUnauthorized, wExpired.Code)
 }
+

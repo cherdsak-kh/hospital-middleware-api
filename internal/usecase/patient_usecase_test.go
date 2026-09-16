@@ -169,4 +169,63 @@ func TestPatientUseCase_DataIsolationAndHIS(t *testing.T) {
 	assert.Len(t, resHIS, 1)
 	assert.Equal(t, "HN-EXT-777", resHIS[0].PatientHN)
 	assert.Equal(t, hospitalA_ID, resHIS[0].HospitalID)
+
+	// 4. Passport Data Isolation Test: Hospital B patient with passport
+	patientB_Passport := domain.Patient{
+		ID:          uuid.New(),
+		HospitalID:  hospitalB_ID,
+		PatientHN:   "HN-B-888",
+		PassportID:  "AB9876543",
+		FirstNameEN: "John",
+		LastNameEN:  "Doe",
+	}
+	_ = repo.Create(&patientB_Passport)
+
+	// Hospital A searches for Hospital B's passport -> MUST BE EMPTY
+	resPassportCross, err := uc.SearchPatients(hospitalA_ID, &domain.PatientSearchQuery{
+		PassportID: "AB9876543",
+	})
+	assert.NoError(t, err)
+	assert.Empty(t, resPassportCross, "Hospital A must not see patients with Passport belonging to Hospital B")
+
+	// 5. Multi-field Search Tests (First Name, Last Name, Phone)
+	resByNameTH, err := uc.SearchPatients(hospitalA_ID, &domain.PatientSearchQuery{
+		FirstName: "สมชาย",
+	})
+	assert.NoError(t, err)
+	assert.True(t, len(resByNameTH) >= 1)
+
+	resByNameEN, err := uc.SearchPatients(hospitalA_ID, &domain.PatientSearchQuery{
+		FirstName: "Somchai",
+	})
+	assert.NoError(t, err)
+	assert.True(t, len(resByNameEN) >= 1)
+
+	resByPhone, err := uc.SearchPatients(hospitalA_ID, &domain.PatientSearchQuery{
+		PhoneNumber: "0812345678",
+	})
+	assert.NoError(t, err)
+	assert.Len(t, resByPhone, 1)
+
+	// 6. External HIS with Passport ID
+	hisClient.patients["P555666777"] = &domain.HospitalAPatientResponse{
+		PatientHN:   "HN-EXT-PASSPORT",
+		PassportID:  "P555666777",
+		FirstNameEN: "Michael",
+		LastNameEN:  "Scott",
+	}
+	resHISPassport, err := uc.SearchPatients(hospitalA_ID, &domain.PatientSearchQuery{
+		PassportID: "P555666777",
+	})
+	assert.NoError(t, err)
+	assert.Len(t, resHISPassport, 1)
+	assert.Equal(t, "HN-EXT-PASSPORT", resHISPassport[0].PatientHN)
+
+	// 7. Patient already in local DB should not be duplicated when re-searched
+	resAlreadyInDB, err := uc.SearchPatients(hospitalA_ID, &domain.PatientSearchQuery{
+		NationalID: "1100100111111",
+	})
+	assert.NoError(t, err)
+	assert.Len(t, resAlreadyInDB, 1)
 }
+
