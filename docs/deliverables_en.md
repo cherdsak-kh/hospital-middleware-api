@@ -33,26 +33,54 @@ The system adheres to the principles of Clean Architecture to ensure separation 
 
 ### 1.2 Request Flow Diagram
 
-```
-Client (Web / Mobile / Third-Party)
-  │
-  ▼
-Nginx Reverse Proxy (Port 80)
-  │ (Proxy Pass)
-  ▼
-Gin Router (Port 8080)
-  ├── Public Routes (/health, /swagger/*, /staff/create, /staff/login)
-  │     └── StaffHandler ──> StaffUseCase ──> StaffRepository ──> PostgreSQL
-  │
-  └── Protected Routes (/patient/search)
-        │
-        ├── AuthMiddleware (Validates JWT, extracts hospital_id, injects into Context)
-        │
-        └── PatientHandler
-              │
-              └── PatientUseCase
-                    ├── PatientRepository ──> PostgreSQL (WHERE hospital_id = :authenticated_hospital_id)
-                    └── HIS Client ──> Hospital A API (External Sync)
+```mermaid
+flowchart TD
+    Client([Client / Web / Mobile])
+    
+    subgraph Infrastructure [Infrastructure Layer]
+        Nginx[Nginx Reverse Proxy :80]
+    end
+
+    subgraph Delivery [Delivery Layer - Gin Framework :8080]
+        Router[Gin Router]
+        AuthMiddleware{Auth Middleware<br/>JWT & Hospital Context}
+        StaffHandler[Staff Handler]
+        PatientHandler[Patient Handler]
+    end
+
+    subgraph BusinessLogic [UseCase Layer]
+        StaffUseCase[Staff UseCase]
+        PatientUseCase[Patient UseCase]
+    end
+
+    subgraph DataAccess [Data Access Layer]
+        StaffRepo[(Staff Repository)]
+        PatientRepo[(Patient Repository)]
+        HISClient[HIS External Client]
+    end
+
+    subgraph Storage [Datastores & External APIs]
+        Postgres[(PostgreSQL 15)]
+        HospitalAAPI[Hospital A External API]
+    end
+
+    Client -->|HTTP Request| Nginx
+    Nginx -->|Proxy Pass :8080| Router
+    
+    Router -->|Public Routes /staff/*| StaffHandler
+    Router -->|Protected Routes /patient/*| AuthMiddleware
+    AuthMiddleware -->|Valid Token & Hospital ID| PatientHandler
+
+    StaffHandler --> StaffUseCase
+    PatientHandler --> PatientUseCase
+
+    StaffUseCase --> StaffRepo
+    PatientUseCase -->|WHERE hospital_id = ?| PatientRepo
+    PatientUseCase -.->|Sync if not in DB| HISClient
+
+    StaffRepo --> Postgres
+    PatientRepo --> Postgres
+    HISClient -.->|GET /patient/search/:id| HospitalAAPI
 ```
 
 ---
@@ -122,40 +150,48 @@ hospital-middleware-api/
 
 ### 3.1 Entity Relationship Diagram
 
-```text
-+-----------------------------------+
-|             hospitals             |
-+-----------------------------------+
-| PK | id         : UUID            |
-| UK | code       : VARCHAR(50)     |
-|    | name       : VARCHAR(255)    |
-|    | created_at : TIMESTAMP      |
-|    | updated_at : TIMESTAMP      |
-+-----------------------------------+
-          |                  |
-     1:N  |             1:N  |
-          v                  v
-+-----------------------+  +------------------------------------+
-|        staffs         |  |              patients              |
-+-----------------------+  +------------------------------------+
-| PK | id            : UUID |  | PK | id             : UUID             |
-| FK | hospital_id   : UUID |  | FK | hospital_id    : UUID             |
-| UK | username      : VARCHAR |  |    | patient_hn     : VARCHAR(100)     |
-|    | password_hash : VARCHAR |  |    | national_id    : VARCHAR(20)      |
-|    | full_name     : VARCHAR |  |    | passport_id    : VARCHAR(50)      |
-|    | created_at    : TIMESTMP|  |    | first_name_th  : VARCHAR(100)     |
-|    | updated_at    : TIMESTMP|  |    | middle_name_th : VARCHAR(100)     |
-+-----------------------+  |    | last_name_th   : VARCHAR(100)     |
-                           |    | first_name_en  : VARCHAR(100)     |
-                           |    | middle_name_en : VARCHAR(100)     |
-                           |    | last_name_en   : VARCHAR(100)     |
-                           |    | date_of_birth  : DATE             |
-                           |    | gender         : VARCHAR(1)       |
-                           |    | phone_number   : VARCHAR(50)      |
-                           |    | email          : VARCHAR(255)     |
-                           |    | created_at     : TIMESTAMP        |
-                           |    | updated_at     : TIMESTAMP        |
-                           +------------------------------------+
+```mermaid
+erDiagram
+    HOSPITALS ||--o{ STAFFS : "employs"
+    HOSPITALS ||--o{ PATIENTS : "registers"
+
+    HOSPITALS {
+        uuid id PK "Primary Key"
+        varchar code UK "Unique Hospital Code"
+        varchar name "Hospital Name"
+        timestamp created_at "Created At"
+        timestamp updated_at "Updated At"
+    }
+
+    STAFFS {
+        uuid id PK "Primary Key"
+        uuid hospital_id FK "References hospitals(id)"
+        varchar username UK "Unique Username"
+        varchar password_hash "Bcrypt Encrypted Hash"
+        varchar full_name "Staff Full Name"
+        timestamp created_at "Created At"
+        timestamp updated_at "Updated At"
+    }
+
+    PATIENTS {
+        uuid id PK "Primary Key"
+        uuid hospital_id FK "References hospitals(id) - Data Isolation"
+        varchar patient_hn "Hospital Number (HN)"
+        varchar national_id "13-digit National ID (Indexed)"
+        varchar passport_id "Passport ID (Indexed)"
+        varchar first_name_th "First Name (Thai)"
+        varchar middle_name_th "Middle Name (Thai)"
+        varchar last_name_th "Last Name (Thai)"
+        varchar first_name_en "First Name (English)"
+        varchar middle_name_en "Middle Name (English)"
+        varchar last_name_en "Last Name (English)"
+        date date_of_birth "Date of Birth"
+        varchar gender "Gender ('M', 'F')"
+        varchar phone_number "Phone Number (Indexed)"
+        varchar email "Email Address (Indexed)"
+        timestamp created_at "Created At"
+        timestamp updated_at "Updated At"
+    }
 ```
 
 ### 3.2 Performance & Indexing Strategy

@@ -33,26 +33,54 @@
 
 ### 1.2 แผนผังการไหลของข้อมูล (Request Flow Diagram)
 
-```
-Client (Web / Mobile / ระบบภายนอก)
-  │
-  ▼
-Nginx Reverse Proxy (พอร์ต 80)
-  │ (Proxy Pass)
-  ▼
-Gin Router (พอร์ต 8080)
-  ├── Public Routes (/health, /swagger/*, /staff/create, /staff/login)
-  │     └── StaffHandler ──> StaffUseCase ──> StaffRepository ──> PostgreSQL
-  │
-  └── Protected Routes (/patient/search)
-        │
-        ├── AuthMiddleware (ตรวจสอบ JWT, สกัด hospital_id ฝังลงใน Context)
-        │
-        └── PatientHandler
-              │
-              └── PatientUseCase
-                    ├── PatientRepository ──> PostgreSQL (WHERE hospital_id = :authenticated_hospital_id)
-                    └── HIS Client ──> Hospital A API (ซิงค์ข้อมูลภายนอก)
+```mermaid
+flowchart TD
+    Client([Client / Web / Mobile / ระบบภายนอก])
+    
+    subgraph Infrastructure [Infrastructure Layer]
+        Nginx[Nginx Reverse Proxy :80]
+    end
+
+    subgraph Delivery [Delivery Layer - Gin Framework :8080]
+        Router[Gin Router]
+        AuthMiddleware{Auth Middleware<br/>ตรวจสอบ JWT และฉีด Hospital ID}
+        StaffHandler[Staff Handler]
+        PatientHandler[Patient Handler]
+    end
+
+    subgraph BusinessLogic [UseCase Layer]
+        StaffUseCase[Staff UseCase]
+        PatientUseCase[Patient UseCase]
+    end
+
+    subgraph DataAccess [Data Access Layer]
+        StaffRepo[(Staff Repository)]
+        PatientRepo[(Patient Repository)]
+        HISClient[HIS External Client]
+    end
+
+    subgraph Storage [Datastores & External APIs]
+        Postgres[(PostgreSQL 15)]
+        HospitalAAPI[Hospital A External API]
+    end
+
+    Client -->|HTTP Request| Nginx
+    Nginx -->|Proxy Pass :8080| Router
+    
+    Router -->|Public Routes /staff/*| StaffHandler
+    Router -->|Protected Routes /patient/*| AuthMiddleware
+    AuthMiddleware -->|Valid Token & Hospital ID| PatientHandler
+
+    StaffHandler --> StaffUseCase
+    PatientHandler --> PatientUseCase
+
+    StaffUseCase --> StaffRepo
+    PatientUseCase -->|WHERE hospital_id = ?| PatientRepo
+    PatientUseCase -.->|ซิงค์เมื่อไม่พบใน DB| HISClient
+
+    StaffRepo --> Postgres
+    PatientRepo --> Postgres
+    HISClient -.->|GET /patient/search/:id| HospitalAAPI
 ```
 
 ---
@@ -124,40 +152,48 @@ hospital-middleware-api/
 
 ### 3.1 แผนภาพความสัมพันธ์ของเอนทิตี (ER Diagram)
 
-```text
-+-----------------------------------+
-|             hospitals             |
-+-----------------------------------+
-| PK | id         : UUID            |
-| UK | code       : VARCHAR(50)     |
-|    | name       : VARCHAR(255)    |
-|    | created_at : TIMESTAMP      |
-|    | updated_at : TIMESTAMP      |
-+-----------------------------------+
-          |                  |
-     1:N  |             1:N  |
-          v                  v
-+-----------------------+  +------------------------------------+
-|        staffs         |  |              patients              |
-+-----------------------+  +------------------------------------+
-| PK | id            : UUID |  | PK | id             : UUID             |
-| FK | hospital_id   : UUID |  | FK | hospital_id    : UUID             |
-| UK | username      : VARCHAR |  |    | patient_hn     : VARCHAR(100)     |
-|    | password_hash : VARCHAR |  |    | national_id    : VARCHAR(20)      |
-|    | full_name     : VARCHAR |  |    | passport_id    : VARCHAR(50)      |
-|    | created_at    : TIMESTMP|  |    | first_name_th  : VARCHAR(100)     |
-|    | updated_at    : TIMESTMP|  |    | middle_name_th : VARCHAR(100)     |
-+-----------------------+  |    | last_name_th   : VARCHAR(100)     |
-                           |    | first_name_en  : VARCHAR(100)     |
-                           |    | middle_name_en : VARCHAR(100)     |
-                           |    | last_name_en   : VARCHAR(100)     |
-                           |    | date_of_birth  : DATE             |
-                           |    | gender         : VARCHAR(1)       |
-                           |    | phone_number   : VARCHAR(50)      |
-                           |    | email          : VARCHAR(255)     |
-                           |    | created_at     : TIMESTAMP        |
-                           |    | updated_at     : TIMESTAMP        |
-                           +------------------------------------+
+```mermaid
+erDiagram
+    HOSPITALS ||--o{ STAFFS : "สังกัด / จ้างงาน"
+    HOSPITALS ||--o{ PATIENTS : "ลงทะเบียน / ดูแลคนไข้"
+
+    HOSPITALS {
+        uuid id PK "Primary Key"
+        varchar code UK "รหัสย่อโรงพยาบาล (Unique)"
+        varchar name "ชื่อโรงพยาบาล"
+        timestamp created_at "เวลาที่สร้าง"
+        timestamp updated_at "เวลาที่แก้ไข"
+    }
+
+    STAFFS {
+        uuid id PK "Primary Key"
+        uuid hospital_id FK "อ้างอิง hospitals(id)"
+        varchar username UK "ชื่อผู้ใช้งาน (Unique)"
+        varchar password_hash "รหัสผ่านที่แฮชด้วย bcrypt"
+        varchar full_name "ชื่อ-นามสกุลเจ้าหน้าที่"
+        timestamp created_at "เวลาที่สร้าง"
+        timestamp updated_at "เวลาที่แก้ไข"
+    }
+
+    PATIENTS {
+        uuid id PK "Primary Key"
+        uuid hospital_id FK "อ้างอิง hospitals(id) - แยกสิทธิ์ระดับโรงพยาบาล"
+        varchar patient_hn "เลขประจำตัวผู้ป่วย (HN)"
+        varchar national_id "เลขบัตรประชาชน 13 หลัก (Indexed)"
+        varchar passport_id "เลขหนังสือเดินทาง (Indexed)"
+        varchar first_name_th "ชื่อ (ภาษาไทย)"
+        varchar middle_name_th "ชื่อกลาง (ภาษาไทย)"
+        varchar last_name_th "นามสกุล (ภาษาไทย)"
+        varchar first_name_en "ชื่อ (ภาษาอังกฤษ)"
+        varchar middle_name_en "ชื่อกลาง (ภาษาอังกฤษ)"
+        varchar last_name_en "นามสกุล (ภาษาอังกฤษ)"
+        date date_of_birth "วันเกิด (YYYY-MM-DD)"
+        varchar gender "เพศ ('M', 'F')"
+        varchar phone_number "เบอร์โทรศัพท์ (Indexed)"
+        varchar email "อีเมล (Indexed)"
+        timestamp created_at "เวลาที่สร้าง"
+        timestamp updated_at "เวลาที่แก้ไข"
+    }
 ```
 
 ### 3.2 กลยุทธ์การสร้าง Composite Indexes เพื่อประสิทธิภาพการค้นหา
