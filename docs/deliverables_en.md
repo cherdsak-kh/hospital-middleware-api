@@ -407,7 +407,7 @@ go test -v ./...
 ## 7. Server Setup with Docker Compose (Deliverable 2)
 
 The solution is containerized into 3 production-ready services:
-1. **`db`:** PostgreSQL 15 on mapped host port `5433` (preventing conflicts with existing database) with automated schema migrations and persistent data volume.
+1. **`db`:** PostgreSQL 15 on mapped host port `5435` (preventing conflicts with existing database) with automated schema migrations and persistent data volume.
 2. **`hospital-middleware-api`:** Go binary compiled via multi-stage Docker build running on port `5000`.
 3. **`nginx`:** Reverse proxy listening on port `80`, routing traffic to the Go application and managing connection timeouts.
 
