@@ -269,4 +269,21 @@ func TestStaffUseCase_ErrorBranches(t *testing.T) {
 	_, err6 := uc6.LoginStaff(&domain.StaffLoginRequest{Username: "user6", Password: "pwd", Hospital: "Hosp"})
 	assert.Error(t, err6)
 	assert.Contains(t, err6.Error(), "failed to find staff")
+
+	// 7. Token generation failure in Login (empty jwt secret)
+	hRepoValid2 := newMockHospitalRepo()
+	hID := uuid.New()
+	_ = hRepoValid2.Create(&domain.Hospital{ID: hID, Code: "HOSP", Name: "Hosp"})
+	sRepoValid2 := newMockStaffRepo()
+	hashedPwd, _ := utils.HashPassword("pwd")
+	_ = sRepoValid2.Create(&domain.Staff{
+		ID:           uuid.New(),
+		HospitalID:   hID,
+		Username:     "user7",
+		PasswordHash: hashedPwd,
+	})
+	uc7 := NewStaffUseCase(sRepoValid2, hRepoValid2, "   ", 24)
+	_, err7 := uc7.LoginStaff(&domain.StaffLoginRequest{Username: "user7", Password: "pwd", Hospital: "Hosp"})
+	assert.Error(t, err7)
+	assert.Contains(t, err7.Error(), "failed to generate access token")
 }

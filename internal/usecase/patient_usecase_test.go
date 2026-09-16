@@ -12,9 +12,10 @@ import (
 
 // Mock Patient Repository
 type mockPatientRepo struct {
-	patients  []domain.Patient
-	searchErr error
-	createErr error
+	patients      []domain.Patient
+	searchResults []domain.Patient
+	searchErr     error
+	createErr     error
 }
 
 func newMockPatientRepo() *mockPatientRepo {
@@ -26,6 +27,9 @@ func newMockPatientRepo() *mockPatientRepo {
 func (m *mockPatientRepo) Search(hospitalID uuid.UUID, query *domain.PatientSearchQuery) ([]domain.Patient, error) {
 	if m.searchErr != nil {
 		return nil, m.searchErr
+	}
+	if m.searchResults != nil {
+		return m.searchResults, nil
 	}
 	results := make([]domain.Patient, 0)
 	for _, p := range m.patients {
@@ -264,11 +268,13 @@ func TestPatientUseCase_EdgeCasesAndErrors(t *testing.T) {
 
 	// 3. HIS Patient already in list by NationalID
 	repoWithNational := newMockPatientRepo()
-	_ = repoWithNational.Create(&domain.Patient{
-		ID:         uuid.New(),
-		HospitalID: hospitalID,
-		NationalID: "NAT_DUP",
-	})
+	repoWithNational.searchResults = []domain.Patient{
+		{
+			ID:         uuid.New(),
+			HospitalID: hospitalID,
+			NationalID: "NAT_DUP",
+		},
+	}
 	dupHisClientNational := &mockHISClient{
 		patients: map[string]*domain.HospitalAPatientResponse{
 			"SEARCH_NAT": {
@@ -283,11 +289,13 @@ func TestPatientUseCase_EdgeCasesAndErrors(t *testing.T) {
 
 	// 4. HIS Patient already in list by PassportID
 	repoWithPassport := newMockPatientRepo()
-	_ = repoWithPassport.Create(&domain.Patient{
-		ID:         uuid.New(),
-		HospitalID: hospitalID,
-		PassportID: "PASS_DUP",
-	})
+	repoWithPassport.searchResults = []domain.Patient{
+		{
+			ID:         uuid.New(),
+			HospitalID: hospitalID,
+			PassportID: "PASS_DUP",
+		},
+	}
 	dupHisClientPassport := &mockHISClient{
 		patients: map[string]*domain.HospitalAPatientResponse{
 			"SEARCH_PASS": {

@@ -48,4 +48,12 @@ func TestJWTGenerationAndValidation(t *testing.T) {
 	noneTokenString, _ := noneTokenObj.SignedString(jwt.UnsafeAllowNoneSignatureType)
 	_, errNone := ValidateToken(noneTokenString, secret)
 	assert.Error(t, errNone)
+
+	// Negative test: Empty secret in GenerateToken
+	_, errEmptyGen := GenerateToken(staffID, hospitalID, username, "   ", 1)
+	assert.Error(t, errEmptyGen)
+
+	// Negative test: Empty secret in ValidateToken
+	_, errEmptyVal := ValidateToken(token, "   ")
+	assert.Error(t, errEmptyVal)
 }

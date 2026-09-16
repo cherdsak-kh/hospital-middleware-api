@@ -72,10 +72,7 @@ func (h *PatientHandler) SearchPatients(c *gin.Context) {
 			_ = c.ShouldBindQuery(&query)
 		}
 	} else {
-		if err := c.ShouldBindQuery(&query); err != nil {
-			response.JSONError(c, http.StatusBadRequest, "Invalid query parameters", err.Error())
-			return
-		}
+		_ = c.ShouldBindQuery(&query)
 	}
 
 	patients, err := h.patientUseCase.SearchPatients(hospitalID, &query)
