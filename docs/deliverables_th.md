@@ -4,7 +4,7 @@
 > **ตำแหน่ง:** Back-end Developer  
 > **บริษัท:** Agnos Health Co., Ltd.  
 > **GitHub Repository:** [https://github.com/cherdsak-kh/hospital-middleware-api](https://github.com/cherdsak-kh/hospital-middleware-api)  
-> **Swagger UI:** `http://localhost:8080/swagger/index.html`
+> **Swagger UI:** `http://localhost:5000/swagger/index.html`
 
 ---
 
@@ -41,7 +41,7 @@ flowchart TD
         Nginx[Nginx Reverse Proxy :80]
     end
 
-    subgraph Delivery [Delivery Layer - Gin Framework :8080]
+    subgraph Delivery [Delivery Layer - Gin Framework :5000]
         Router[Gin Router]
         AuthMiddleware{Auth Middleware<br/>ตรวจสอบ JWT และฉีด Hospital ID}
         StaffHandler[Staff Handler]
@@ -65,7 +65,7 @@ flowchart TD
     end
 
     Client -->|HTTP Request| Nginx
-    Nginx -->|Proxy Pass :8080| Router
+    Nginx -->|Proxy Pass :5000| Router
     
     Router -->|Public Routes /staff/*| StaffHandler
     Router -->|Protected Routes /patient/*| AuthMiddleware
@@ -245,7 +245,7 @@ erDiagram
 ```
 
 ### 5.1 Interactive Swagger UI
-* **URL:** `http://localhost:8080/swagger/index.html` (ตรง) หรือ `http://localhost/swagger/index.html` (ผ่าน Nginx)
+* **URL:** `http://localhost:5000/swagger/index.html` (ตรง) หรือ `http://localhost/swagger/index.html` (ผ่าน Nginx)
 * รองรับการทดสอบจริงผ่าน Browser พร้อมระบบ Bearer Token Authorization
 
 ---
@@ -407,8 +407,8 @@ go test -v ./...
 ## 7. การติดตั้งและรันด้วย Docker Compose (Deliverable 2)
 
 ระบบถูกจัดเตรียมเป็น Containers พร้อมใช้งาน 3 ตัว:
-1. **`db`:** PostgreSQL 15 พอร์ต `5432` พร้อมสร้างตารางอัตโนมัติและเก็บข้อมูลแบบ Persistent
-2. **`hospital-middleware-api`:** Go Binary ที่คอมไพล์ผ่าน Multi-stage Dockerfile พอร์ต `8080`
+1. **`db`:** PostgreSQL 15 กำหนดแมปพอร์ตโฮสต์เป็น `5433` (เพื่อไม่ให้ชนกับฐานข้อมูลเดิมของเครื่อง) พร้อมสร้างตารางอัตโนมัติและเก็บข้อมูลแบบ Persistent
+2. **`hospital-middleware-api`:** Go Binary ที่คอมไพล์ผ่าน Multi-stage Dockerfile รันบนพอร์ต `5000`
 3. **`nginx`:** Reverse Proxy พอร์ต `80` จัดการ Routing ส่งต่อไปยัง Go App
 
 ### คำสั่งเริ่มระบบในคำสั่งเดียว:

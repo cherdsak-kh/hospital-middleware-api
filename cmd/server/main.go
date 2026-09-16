@@ -16,7 +16,7 @@ import (
 // @description     Hospital Middleware API for searching and managing patient information from Hospital Information Systems (HIS) with hospital-level data isolation.
 // @contact.name    Cherdsak Kh.
 // @contact.email   cherd8524@gmail.com
-// @host            localhost:8080
+// @host            localhost:5000
 // @BasePath        /
 // @securityDefinitions.apikey BearerAuth
 // @in              header

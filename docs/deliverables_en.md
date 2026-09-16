@@ -4,7 +4,7 @@
 > **Position:** Back-end Developer  
 > **Company:** Agnos Health Co., Ltd.  
 > **Repository:** [https://github.com/cherdsak-kh/hospital-middleware-api](https://github.com/cherdsak-kh/hospital-middleware-api)  
-> **Interactive Documentation:** `http://localhost:8080/swagger/index.html`
+> **Interactive Documentation:** `http://localhost:5000/swagger/index.html`
 
 ---
 
@@ -41,7 +41,7 @@ flowchart TD
         Nginx[Nginx Reverse Proxy :80]
     end
 
-    subgraph Delivery [Delivery Layer - Gin Framework :8080]
+    subgraph Delivery [Delivery Layer - Gin Framework :5000]
         Router[Gin Router]
         AuthMiddleware{Auth Middleware<br/>JWT & Hospital Context}
         StaffHandler[Staff Handler]
@@ -65,7 +65,7 @@ flowchart TD
     end
 
     Client -->|HTTP Request| Nginx
-    Nginx -->|Proxy Pass :8080| Router
+    Nginx -->|Proxy Pass :5000| Router
     
     Router -->|Public Routes /staff/*| StaffHandler
     Router -->|Protected Routes /patient/*| AuthMiddleware
@@ -245,7 +245,7 @@ The API supports standardized JSON responses using the following envelope:
 ```
 
 ### 5.1 Interactive Swagger UI Documentation
-* **URL:** `http://localhost:8080/swagger/index.html` (Direct) or `http://localhost/swagger/index.html` (via Nginx)
+* **URL:** `http://localhost:5000/swagger/index.html` (Direct) or `http://localhost/swagger/index.html` (via Nginx)
 * Supports full interactive testing with Bearer Token Authorization.
 
 ---
@@ -407,8 +407,8 @@ go test -v ./...
 ## 7. Server Setup with Docker Compose (Deliverable 2)
 
 The solution is containerized into 3 production-ready services:
-1. **`db`:** PostgreSQL 15 on port `5432` with automated schema migrations and persistent data volume.
-2. **`hospital-middleware-api`:** Go binary compiled via multi-stage Docker build running on port `8080`.
+1. **`db`:** PostgreSQL 15 on mapped host port `5433` (preventing conflicts with existing database) with automated schema migrations and persistent data volume.
+2. **`hospital-middleware-api`:** Go binary compiled via multi-stage Docker build running on port `5000`.
 3. **`nginx`:** Reverse proxy listening on port `80`, routing traffic to the Go application and managing connection timeouts.
 
 ### One-Command Deployment:

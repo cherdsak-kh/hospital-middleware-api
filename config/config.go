@@ -34,7 +34,7 @@ func LoadConfig() (*Config, error) {
 	}
 
 	cfg := &Config{
-		Port:             getEnv("PORT", "8080"),
+		Port:             getEnv("PORT", "5000"),
 		DBHost:           getEnv("DB_HOST", "localhost"),
 		DBPort:           getEnv("DB_PORT", "5432"),
 		DBUser:           getEnv("DB_USER", "postgres"),

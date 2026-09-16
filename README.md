@@ -83,7 +83,7 @@ docker-compose up -d --build
 ```
 
 - **Nginx Entry Point:** `http://localhost/` (Port 80)
-- **Go API Direct:** `http://localhost:8080/` (Port 8080)
+- **Go API Direct:** `http://localhost:5000/` (Port 5000)
 - **PostgreSQL Database:** `localhost:5433` (พอร์ต Host 5433 เพื่อไม่ให้ชนกับฐานข้อมูลเดิม)
 
 ตรวจสอบสถานะระบบ:
@@ -135,7 +135,7 @@ go test -v ./...
 
 ### 6.1 Interactive Swagger UI Documentation
 ระบบมาพร้อมกับ Swagger UI (OpenAPI 2.0 / 3.0) ซึ่งสามารถเปิดทดสอบ API ผ่าน Web Browser ได้โดยตรง:
-* **URL:** `http://localhost:8080/swagger/index.html`
+* **URL:** `http://localhost:5000/swagger/index.html` (หรือผ่าน Nginx ที่ `http://localhost/swagger/index.html`)
 * รองรับการกด **Authorize** ใส่ `Bearer <token>` เพื่อทดสอบ API `/patient/search` ได้ทันที
 
 ---

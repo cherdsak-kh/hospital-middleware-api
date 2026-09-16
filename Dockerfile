@@ -22,6 +22,6 @@ WORKDIR /app
 COPY --from=builder /app/server /app/server
 COPY --from=builder /app/migrations /app/migrations
 
-EXPOSE 8080
+EXPOSE 5000
 
 CMD ["/app/server"]

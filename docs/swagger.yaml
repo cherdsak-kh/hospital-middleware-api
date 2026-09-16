@@ -90,7 +90,7 @@ definitions:
       success:
         type: boolean
     type: object
-host: localhost:8080
+host: localhost:5000
 info:
   contact:
     email: cherd8524@gmail.com
