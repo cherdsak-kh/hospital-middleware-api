@@ -52,7 +52,7 @@
 | `internal/delivery/http` | **100.0%** | สมบูรณ์แบบ (Full 100% Coverage) |
 | `internal/usecase` | **100.0%** | สมบูรณ์แบบ (Full 100% Coverage) |
 | `pkg/utils` | **100.0%** | สมบูรณ์แบบ (Full 100% Coverage) |
-| `cmd/server`, `docs`, `domain`, `repository` | N/A | Interfaces & Boilerplate |
+| `cmd/server`, `api/docs`, `domain`, `repository` | N/A | Interfaces & Boilerplate |
 
 ---
 
