@@ -196,7 +196,29 @@ erDiagram
     }
 ```
 
-### 3.2 Performance & Indexing Strategy
+### 3.2 Business Rules & Relationship Narrative
+
+The relational schema strictly enforces the following core business rules:
+
+#### 1. Hospital Multi-Tenancy Boundary
+* **BR-HOSP-01 (Autonomous Tenants):** Each record in `hospitals` represents an independent healthcare organization and tenant boundary.
+* **BR-HOSP-02 (Unique Identification):** Every hospital must possess an immutable UUID primary key (`id`) and a unique alphanumeric code (`code UK`), e.g., `"hospital-a"`.
+* **BR-HOSP-03 (Referential Integrity):** A hospital cannot be deleted if active staff accounts or patient records reference it (`ON DELETE RESTRICT`).
+
+#### 2. Staff Management & Access Control
+* **BR-STAFF-01 (Mandatory Affiliation):** Every staff member must belong to exactly one hospital (`hospital_id NOT NULL REFERENCES hospitals(id)`). Floating or unassigned staff accounts are prohibited.
+* **BR-STAFF-02 (Unique Account Identifier):** Each staff member must have a globally unique `username (UK)`. Duplicate username registrations are rejected with HTTP 409 Conflict.
+* **BR-STAFF-03 (Credential Security):** Staff passwords must never be stored in plaintext. They must be hashed using bcrypt with an adaptive cost factor before database persistence.
+* **BR-STAFF-04 (Cardinality with Hospital):** A hospital employs zero or many staff members (`HOSPITALS ||--o{ STAFFS`), while a staff member belongs to exactly one hospital (`1..1`).
+
+#### 3. Patient Records & Data Isolation
+* **BR-PAT-01 (Tenant Ownership):** Every patient record must be explicitly owned by exactly one hospital (`hospital_id NOT NULL REFERENCES hospitals(id)`). Cross-tenant patient record sharing is prohibited.
+* **BR-PAT-02 (Strict Data Isolation):** Hospital staff are authorized to search and access only patient records owned by their authenticated hospital (`WHERE hospital_id = :authenticated_hospital_id`).
+* **BR-PAT-03 (Tenant-Scoped Identity):** Patients are identified within their hospital by `patient_hn`, `national_id` (Thai Citizen ID), or `passport_id`. The same physical individual receiving care at two different hospitals holds two completely isolated patient records.
+* **BR-PAT-04 (External HIS Synchronization):** When a patient search produces zero local results, the system queries the external HIS (Hospital A API). If found, the external record is synchronized and persisted locally, bound exclusively to the requesting hospital's tenant.
+* **BR-PAT-05 (Cardinality with Hospital):** A hospital registers zero or many patient records (`HOSPITALS ||--o{ PATIENTS`), while each patient record belongs to exactly one hospital (`1..1`).
+
+### 3.3 Performance & Indexing Strategy
 
 To accommodate flexible queries on `/patient/search` where all query parameters are optional, composite indexes prefixed with `hospital_id` are created:
 
