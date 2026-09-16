@@ -11,6 +11,18 @@ import (
 	"github.com/cherdsak-kh/hospital-middleware-api/internal/usecase"
 )
 
+// @title           Hospital Middleware API
+// @version         1.0
+// @description     Hospital Middleware API for searching and managing patient information from Hospital Information Systems (HIS) with hospital-level data isolation.
+// @contact.name    Cherdsak Kh.
+// @contact.email   cherd8524@gmail.com
+// @host            localhost:8080
+// @BasePath        /
+// @securityDefinitions.apikey BearerAuth
+// @in              header
+// @name            Authorization
+// @description     Enter "Bearer " followed by your JWT token
+
 func main() {
 	// 1. Load application configuration
 	cfg, err := config.LoadConfig()

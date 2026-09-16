@@ -4,8 +4,11 @@ import (
 	"net/http"
 
 	"github.com/cherdsak-kh/hospital-middleware-api/config"
+	_ "github.com/cherdsak-kh/hospital-middleware-api/docs"
 	"github.com/cherdsak-kh/hospital-middleware-api/internal/delivery/http/middleware"
 	"github.com/gin-gonic/gin"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 // SetupRouter sets up Gin engine routes, middleware, and handlers
@@ -44,6 +47,9 @@ func SetupRouter(
 			"service": "hospital-middleware-api",
 		})
 	})
+
+	// Swagger API documentation
+	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	// Public routes (Staff registration and login)
 	staffGroup := router.Group("/staff")

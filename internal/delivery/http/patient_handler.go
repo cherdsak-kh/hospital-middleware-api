@@ -19,7 +19,27 @@ func NewPatientHandler(patientUseCase domain.PatientUseCase) *PatientHandler {
 	return &PatientHandler{patientUseCase: patientUseCase}
 }
 
-// SearchPatients handles GET and POST /patient/search
+// SearchPatients godoc
+// @Summary      Search patient records
+// @Description  Searches patient records by optional criteria with hospital data isolation
+// @Tags         Patient
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        national_id query string false "National ID"
+// @Param        passport_id query string false "Passport ID"
+// @Param        first_name query string false "First Name (matches TH or EN)"
+// @Param        middle_name query string false "Middle Name (matches TH or EN)"
+// @Param        last_name query string false "Last Name (matches TH or EN)"
+// @Param        date_of_birth query string false "Date of Birth (YYYY-MM-DD)"
+// @Param        phone_number query string false "Phone Number"
+// @Param        email query string false "Email Address"
+// @Success      200 {object} response.StandardResponse{data=[]domain.PatientResponse} "Patients matching criteria"
+// @Failure      400 {object} response.StandardResponse "Invalid query parameters"
+// @Failure      401 {object} response.StandardResponse "Unauthorized or missing token"
+// @Failure      500 {object} response.StandardResponse "Internal server error"
+// @Router       /patient/search [get]
+// @Router       /patient/search [post]
 func (h *PatientHandler) SearchPatients(c *gin.Context) {
 	// Extract verified hospital_id injected by AuthMiddleware
 	hospitalIDVal, exists := c.Get("hospital_id")

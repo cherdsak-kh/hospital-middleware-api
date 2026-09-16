@@ -20,7 +20,18 @@ func NewStaffHandler(staffUseCase domain.StaffUseCase) *StaffHandler {
 	return &StaffHandler{staffUseCase: staffUseCase}
 }
 
-// CreateStaff handles POST /staff/create
+// CreateStaff godoc
+// @Summary      Create a new hospital staff member
+// @Description  Registers a new staff member with encrypted login credentials and hospital affiliation
+// @Tags         Staff
+// @Accept       json
+// @Produce      json
+// @Param        request body domain.StaffCreateRequest true "Staff creation payload"
+// @Success      201 {object} response.StandardResponse "Staff account created successfully"
+// @Failure      400 {object} response.StandardResponse "Invalid request payload"
+// @Failure      409 {object} response.StandardResponse "Username is already taken"
+// @Failure      500 {object} response.StandardResponse "Internal server error"
+// @Router       /staff/create [post]
 func (h *StaffHandler) CreateStaff(c *gin.Context) {
 	var req domain.StaffCreateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -47,7 +58,18 @@ func (h *StaffHandler) CreateStaff(c *gin.Context) {
 	})
 }
 
-// LoginStaff handles POST /staff/login
+// LoginStaff godoc
+// @Summary      Hospital staff login
+// @Description  Authenticates hospital staff and returns a signed JWT token containing hospital context
+// @Tags         Staff
+// @Accept       json
+// @Produce      json
+// @Param        request body domain.StaffLoginRequest true "Staff login credentials"
+// @Success      200 {object} response.StandardResponse{data=domain.StaffLoginResponse} "Authentication successful"
+// @Failure      400 {object} response.StandardResponse "Invalid login payload"
+// @Failure      401 {object} response.StandardResponse "Authentication failed"
+// @Failure      500 {object} response.StandardResponse "Internal server error"
+// @Router       /staff/login [post]
 func (h *StaffHandler) LoginStaff(c *gin.Context) {
 	var req domain.StaffLoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

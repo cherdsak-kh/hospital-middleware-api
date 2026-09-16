@@ -1,0 +1,323 @@
+basePath: /
+definitions:
+  domain.PatientResponse:
+    properties:
+      created_at:
+        type: string
+      date_of_birth:
+        type: string
+      email:
+        type: string
+      first_name_en:
+        type: string
+      first_name_th:
+        type: string
+      gender:
+        type: string
+      hospital_id:
+        type: string
+      id:
+        type: string
+      last_name_en:
+        type: string
+      last_name_th:
+        type: string
+      middle_name_en:
+        type: string
+      middle_name_th:
+        type: string
+      national_id:
+        type: string
+      passport_id:
+        type: string
+      patient_hn:
+        type: string
+      phone_number:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  domain.StaffCreateRequest:
+    properties:
+      full_name:
+        type: string
+      hospital:
+        type: string
+      password:
+        minLength: 6
+        type: string
+      username:
+        maxLength: 50
+        minLength: 3
+        type: string
+    required:
+    - hospital
+    - password
+    - username
+    type: object
+  domain.StaffLoginRequest:
+    properties:
+      hospital:
+        type: string
+      password:
+        type: string
+      username:
+        type: string
+    required:
+    - hospital
+    - password
+    - username
+    type: object
+  domain.StaffLoginResponse:
+    properties:
+      hospital_id:
+        type: string
+      hospital_name:
+        type: string
+      staff_id:
+        type: string
+      token:
+        type: string
+      username:
+        type: string
+    type: object
+  response.StandardResponse:
+    properties:
+      data: {}
+      error: {}
+      message:
+        type: string
+      success:
+        type: boolean
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: cherd8524@gmail.com
+    name: Cherdsak Kh.
+  description: Hospital Middleware API for searching and managing patient information
+    from Hospital Information Systems (HIS) with hospital-level data isolation.
+  title: Hospital Middleware API
+  version: "1.0"
+paths:
+  /patient/search:
+    get:
+      consumes:
+      - application/json
+      description: Searches patient records by optional criteria with hospital data
+        isolation
+      parameters:
+      - description: National ID
+        in: query
+        name: national_id
+        type: string
+      - description: Passport ID
+        in: query
+        name: passport_id
+        type: string
+      - description: First Name (matches TH or EN)
+        in: query
+        name: first_name
+        type: string
+      - description: Middle Name (matches TH or EN)
+        in: query
+        name: middle_name
+        type: string
+      - description: Last Name (matches TH or EN)
+        in: query
+        name: last_name
+        type: string
+      - description: Date of Birth (YYYY-MM-DD)
+        in: query
+        name: date_of_birth
+        type: string
+      - description: Phone Number
+        in: query
+        name: phone_number
+        type: string
+      - description: Email Address
+        in: query
+        name: email
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Patients matching criteria
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.StandardResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/domain.PatientResponse'
+                  type: array
+              type: object
+        "400":
+          description: Invalid query parameters
+          schema:
+            $ref: '#/definitions/response.StandardResponse'
+        "401":
+          description: Unauthorized or missing token
+          schema:
+            $ref: '#/definitions/response.StandardResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/response.StandardResponse'
+      security:
+      - BearerAuth: []
+      summary: Search patient records
+      tags:
+      - Patient
+    post:
+      consumes:
+      - application/json
+      description: Searches patient records by optional criteria with hospital data
+        isolation
+      parameters:
+      - description: National ID
+        in: query
+        name: national_id
+        type: string
+      - description: Passport ID
+        in: query
+        name: passport_id
+        type: string
+      - description: First Name (matches TH or EN)
+        in: query
+        name: first_name
+        type: string
+      - description: Middle Name (matches TH or EN)
+        in: query
+        name: middle_name
+        type: string
+      - description: Last Name (matches TH or EN)
+        in: query
+        name: last_name
+        type: string
+      - description: Date of Birth (YYYY-MM-DD)
+        in: query
+        name: date_of_birth
+        type: string
+      - description: Phone Number
+        in: query
+        name: phone_number
+        type: string
+      - description: Email Address
+        in: query
+        name: email
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Patients matching criteria
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.StandardResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/domain.PatientResponse'
+                  type: array
+              type: object
+        "400":
+          description: Invalid query parameters
+          schema:
+            $ref: '#/definitions/response.StandardResponse'
+        "401":
+          description: Unauthorized or missing token
+          schema:
+            $ref: '#/definitions/response.StandardResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/response.StandardResponse'
+      security:
+      - BearerAuth: []
+      summary: Search patient records
+      tags:
+      - Patient
+  /staff/create:
+    post:
+      consumes:
+      - application/json
+      description: Registers a new staff member with encrypted login credentials and
+        hospital affiliation
+      parameters:
+      - description: Staff creation payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/domain.StaffCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Staff account created successfully
+          schema:
+            $ref: '#/definitions/response.StandardResponse'
+        "400":
+          description: Invalid request payload
+          schema:
+            $ref: '#/definitions/response.StandardResponse'
+        "409":
+          description: Username is already taken
+          schema:
+            $ref: '#/definitions/response.StandardResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/response.StandardResponse'
+      summary: Create a new hospital staff member
+      tags:
+      - Staff
+  /staff/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticates hospital staff and returns a signed JWT token containing
+        hospital context
+      parameters:
+      - description: Staff login credentials
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/domain.StaffLoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Authentication successful
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.StandardResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.StaffLoginResponse'
+              type: object
+        "400":
+          description: Invalid login payload
+          schema:
+            $ref: '#/definitions/response.StandardResponse'
+        "401":
+          description: Authentication failed
+          schema:
+            $ref: '#/definitions/response.StandardResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/response.StandardResponse'
+      summary: Hospital staff login
+      tags:
+      - Staff
+securityDefinitions:
+  BearerAuth:
+    description: Enter "Bearer " followed by your JWT token
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

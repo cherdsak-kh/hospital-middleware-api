@@ -131,9 +131,16 @@ go test -v ./...
 
 ---
 
-## 6. API Specifications
+## 6. API Specifications & Swagger UI
 
-### 6.1 Health Check
+### 6.1 Interactive Swagger UI Documentation
+ระบบมาพร้อมกับ Swagger UI (OpenAPI 2.0 / 3.0) ซึ่งสามารถเปิดทดสอบ API ผ่าน Web Browser ได้โดยตรง:
+* **URL:** `http://localhost:8080/swagger/index.html`
+* รองรับการกด **Authorize** ใส่ `Bearer <token>` เพื่อทดสอบ API `/patient/search` ได้ทันที
+
+---
+
+### 6.2 Health Check
 - **Endpoint:** `GET /health`
 - **Response:**
   ```json
