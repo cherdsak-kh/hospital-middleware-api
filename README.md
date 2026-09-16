@@ -30,11 +30,9 @@ hospital-middleware-api/
 │       └── main.go                 # Application entry point: config loading, DB connection, DI wiring
 ├── config/
 │   └── config.go                   # Environment variables and configuration loader
-├── docs/                           # Project planning, architecture diagrams, test reports (Markdown)
-│   ├── architecture_and_schema.md
-│   ├── deliverables_en.md
-│   ├── deliverables_th.md
-│   └── test_report.md
+├── docs/                           # Architecture, database schema, and QA test reports (Markdown)
+│   ├── architecture_and_schema.md  # Clean Architecture flows, ER model, SQL DDL, and Sequence Diagrams
+│   └── test_report.md              # Complete QA test report and 100% statement coverage matrix
 ├── internal/
 │   ├── domain/                     # Core business entities, DTOs, and interface contracts
 │   │   ├── hospital.go

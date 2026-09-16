@@ -22,3 +22,8 @@ go.work
 
 # Docker volume data
 postgres_data/
+
+# Submission deliverables and draft notes (local only)
+docs/deliverables_en.md
+docs/deliverables_th.md
+docs/google_doc_ready.md

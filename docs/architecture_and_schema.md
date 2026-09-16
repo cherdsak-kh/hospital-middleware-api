@@ -241,7 +241,9 @@ hospital-middleware-api/
 │       └── main.go                 # จุดเริ่มต้นของแอปพลิเคชัน (Entry point)
 ├── config/
 │   └── config.go                   # การโหลด Environment Variables
-├── docs/                           # เอกสารสถาปัตยกรรม, แผนพัฒนา, และรายงานผลการทดสอบ (Markdown)
+├── docs/                           # เอกสารสถาปัตยกรรมและรายงานผลการทดสอบ (Markdown)
+│   ├── architecture_and_schema.md  # สถาปัตยกรรมระบบ, ER Diagram, SQL DDL, และ Sequence Diagrams
+│   └── test_report.md              # รายงานผลการทดสอบ QA & Test Coverage 100%
 ├── internal/
 │   ├── domain/                     # Domain Entities (structs) และ Interfaces
 │   ├── repository/                 # Data Access Layer (ติดต่อ PostgreSQL)
