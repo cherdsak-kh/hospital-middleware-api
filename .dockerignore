@@ -1,0 +1,10 @@
+.git
+.gitignore
+.env
+docs/
+*.md
+postgres_data/
+*.exe
+*.out
+*.test
+client_cov*
