@@ -32,7 +32,7 @@ services:
       DB_PASSWORD: postgres_password
       DB_NAME: hospital_db
       DB_SSLMODE: disable
-      JWT_SECRET: f4fb54375319c1e7a2f7b7ee9fd4333a0fa55368078b20d2c3cb796050176b02
+      JWT_SECRET: your_super_secret_jwt_key
       JWT_EXPIRY_HOURS: 24
       HOSPITAL_A_BASE_URL: https://hospital-a.api.co.th
       APP_ENV: production
