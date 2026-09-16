@@ -1,10 +1,11 @@
 # Hospital Middleware API (`hospital-middleware-api`)
 
-Middleware API service สำหรับค้นหาและแสดงข้อมูลคนไข้จากระบบสารสนเทศโรงพยาบาล (Hospital Information Systems: HIS) และฐานข้อมูลภายใน พร้อมกลไกความปลอดภัย Multi-tenancy Data Isolation ตามข้อกำหนดของ Agnos Health.
+A secure, enterprise-grade middleware API service developed in Go for querying and synchronizing patient records across Hospital Information Systems (HIS) and internal databases, featuring strict multi-tenancy data isolation in accordance with Agnos Health requirements.
 
 ---
 
 ## 1. Tech Stack
+
 - **Language:** Go 1.27 / 1.23+
 - **HTTP Framework:** Gin Web Framework
 - **ORM / Database Driver:** GORM + pgx (PostgreSQL driver)
@@ -12,137 +13,141 @@ Middleware API service สำหรับค้นหาและแสดงข
 - **Reverse Proxy:** Nginx (Alpine)
 - **Authentication:** JWT (HMAC-SHA256) + bcrypt
 - **Containerization:** Docker & Docker Compose
+- **API Documentation:** Swagger / OpenAPI 2.0 (`swag`, `gin-swagger`)
 
 ---
 
 ## 2. Project Architecture (Clean Architecture)
 
-โปรเจกต์ถูกออกแบบตามหลัก Clean Architecture เพื่อแบ่งแยกความรับผิดชอบ (Separation of Concerns):
+The codebase strictly follows Clean Architecture (Layered Architecture) principles to ensure separation of concerns, high maintainability, and thorough testability:
 
 ```text
 hospital-middleware-api/
 ├── cmd/
 │   └── server/
-│       └── main.go                 # Entry point: โหลด config, ต่อ DB, ผูก Dependency Injection
+│       └── main.go                 # Application entry point: config loading, DB connection, DI wiring
 ├── config/
-│   └── config.go                   # โหลด Configuration และ Environment Variables
+│   └── config.go                   # Environment variables and configuration loader
 ├── internal/
-│   ├── domain/                     # Entity models, DTOs, และ Interfaces
+│   ├── domain/                     # Core business entities, DTOs, and interface contracts
 │   │   ├── hospital.go
 │   │   ├── staff.go
 │   │   └── patient.go
-│   ├── repository/                 # Data Access Layer (ติดต่อ PostgreSQL ด้วย GORM)
+│   ├── repository/                 # Data access layer (PostgreSQL interaction via GORM)
 │   │   ├── db.go
 │   │   ├── hospital_repository.go
 │   │   ├── staff_repository.go
-│   │   └── patient_repository.go   # บังคับ WHERE hospital_id = ? ทุกการค้นหา
-│   ├── usecase/                    # Business Logic Layer
-│   │   ├── staff_usecase.go        # สมัคร/เข้าสู่ระบบ, Hash รหัสผ่าน, ออก JWT
-│   │   └── patient_usecase.go      # ค้นหาคนไข้และดึงข้อมูลจาก External HIS
+│   │   └── patient_repository.go   # Enforces WHERE hospital_id = ? on all queries
+│   ├── usecase/                    # Business logic layer
+│   │   ├── staff_usecase.go        # Registration, login, password hashing, JWT issuance
+│   │   └── patient_usecase.go      # Patient search and external HIS synchronization
 │   ├── delivery/
-│   │   └── http/                   # HTTP Transport Layer (Gin Handlers & Routes)
+│   │   └── http/                   # Transport layer (Gin handlers and routing)
 │   │       ├── middleware/
-│   │       │   └── auth_middleware.go # ตรวจสอบ JWT Bearer และฉีด hospital_id ลง context
+│   │       │   └── auth_middleware.go # Validates JWT Bearer and injects hospital_id into context
 │   │       ├── staff_handler.go
 │   │       ├── patient_handler.go
 │   │       └── router.go
 │   └── client/
-│       └── his_client.go           # External Integration ติดต่อ Hospital A API
+│       └── his_client.go           # External integration client for Hospital A HIS API
 ├── pkg/
-│   ├── utils/                      # Helper Functions (bcrypt password, JWT generator/validator)
-│   └── response/                   # Standardized JSON Response (Success, Error)
-├── migrations/                     # SQL DDL Scripts (schema & indexes)
-├── nginx/                          # Reverse proxy configuration
+│   ├── utils/                      # Utilities (bcrypt password hashing, JWT generator and validator)
+│   └── response/                   # Standardized JSON response envelope (Success, Error)
+├── migrations/                     # SQL DDL migration scripts (schema and composite indexes)
+├── nginx/                          # Nginx reverse proxy configuration
 │   ├── nginx.conf
 │   └── conf.d/default.conf
-├── Dockerfile                      # Multi-stage Docker build
-├── docker-compose.yml              # PostgreSQL + Go API + Nginx setup
-└── .env.example                    # ตัวอย่างค่า Configuration
+├── Dockerfile                      # Multi-stage Docker build file
+├── docker-compose.yml              # Multi-container orchestration (PostgreSQL + Go API + Nginx)
+└── .env.example                    # Sample environment variables configuration
 ```
 
 ---
 
-## 3. Data Isolation Mechanism (Multi-tenancy by Hospital)
+## 3. Data Isolation Mechanism (Hospital-Level Multi-Tenancy)
 
-ความปลอดภัยในการแยกข้อมูลคนไข้ระหว่างโรงพยาบาลถูกบังคับใช้ 3 ระดับอย่างเด็ดขาด:
+Patient data security and hospital isolation are strictly enforced through a **3-tier defense-in-depth architecture**:
 
-1. **ระดับ Token Claims:** เมื่อเจ้าหน้าที่เข้าสู่ระบบ (`/staff/login`) ค่า `hospital_id` และ `staff_id` จะถูกฝังลงใน Payload ของ JWT และเซ็นชื่อ (Sign) ด้วย Secret Key
-2. **ระดับ Context Injection:** ทุก Request ที่เรียกมายัง `/patient/search` ต้องผ่าน `AuthMiddleware` ซึ่งทำการตรวจสอบ JWT และฝังค่า `hospital_id` ลงใน Context ของ Gin โดยตรง ป้องกันไม่ให้ Client ปลอมแปลงโรงพยาบาลได้
-3. **ระดับ Database Query:** ใน `patient_repository.go` ทุก Query ถูกบังคับเงื่อนไข `WHERE hospital_id = ?` จาก Context เป็นเงื่อนไขหลักเสมอ ทำให้ผลลัพธ์การค้นหาถูกจำกัดเฉพาะโรงพยาบาลของตนเอง 100%
+1. **Cryptographically Signed Token Claims:** When a hospital staff member authenticates (`/staff/login`), their assigned `hospital_id` and `staff_id` are embedded directly inside the JWT claims payload and signed with HMAC-SHA256.
+2. **Server-Side Context Injection:** Every request to protected routes (`/patient/search`) passes through `AuthMiddleware`. The middleware verifies the token signature, extracts the validated `hospital_id`, and injects it into the Gin request context (`c.Set("hospital_id", ...)`). Clients cannot manipulate or spoof this value via query strings or request headers.
+3. **Mandatory Database Query Filter:** In `patient_repository.go`, all queries unconditionally enforce `WHERE hospital_id = :authenticated_hospital_id`. Staff from Hospital A will receive an empty result set (`[]`) if querying patient data belonging to Hospital B, guaranteeing 100% isolation across tenants.
 
 ---
 
-## 4. วิธีการติดตั้งและรันระบบ (Setup & Running)
+## 4. Installation and Setup Guide
 
-### 4.1 รันด้วย Docker Compose (แนะนำ)
+### 4.1 Running with Docker Compose (Recommended)
 
-สั่งรันทั้งระบบ (PostgreSQL, Go API, Nginx) ด้วยคำสั่งเดียว:
+Launch the entire stack (PostgreSQL, Go API, and Nginx) with a single command:
 
 ```bash
-docker-compose up -d --build
+docker compose up --build -d
 ```
 
-- **Nginx Entry Point:** `http://localhost/` (Port 80)
-- **Go API Direct:** `http://localhost:5000/` (Port 5000)
-- **PostgreSQL Database:** `localhost:5435` (พอร์ต Host 5435 เพื่อไม่ให้ชนกับฐานข้อมูลเดิม)
+- **Nginx Reverse Proxy:** `http://localhost/` (Port 80)
+- **Go Web API Direct:** `http://localhost:5000/` (Port 5000)
+- **PostgreSQL Database:** `localhost:5435` (Host port mapped to 5435 to avoid port collisions with pre-existing local databases)
 
-ตรวจสอบสถานะระบบ:
+Check container health and status:
 ```bash
-docker-compose ps
+docker compose ps
 ```
 
 ---
 
-### 4.2 รันสำหรับ Local Development
+### 4.2 Local Development Setup
 
-1. คัดลอกไฟล์ `.env.example` ไปเป็น `.env`:
+1. Copy the sample environment file:
    ```bash
    cp .env.example .env
    ```
-2. ตั้งค่าการเชื่อมต่อฐานข้อมูลใน `.env`
-3. ติดตั้ง Dependencies:
+2. Adjust database credentials in `.env` if necessary.
+3. Download dependencies:
    ```bash
    go mod download
    ```
-4. สั่งรัน Server:
+4. Start the server:
    ```bash
    go run ./cmd/server/main.go
    ```
 
 ---
 
-## 5. การรัน Unit Tests
+## 5. Running Unit Tests
 
-โปรเจกต์ประกอบด้วย Unit Tests ครอบคลุมทั้ง Positive และ Negative Test Scenarios:
+The test suite covers both positive and negative test scenarios using mock repositories and mock HTTP clients:
 
 ```bash
 go test -v ./...
 ```
 
-### สรุปผลการทดสอบ:
+### Test Suite Overview:
 - `pkg/utils`:
-  - `TestPasswordHashing`: ทดสอบการ Hash และ Verify รหัสผ่านด้วย bcrypt
-  - `TestJWTGenerationAndValidation`: ทดสอบการสร้างและตรวจสอบ Token พร้อมกรณี Token ผิดพลาด
+  - `TestPasswordHashing`: Verifies password hashing and invalid password rejection using bcrypt.
+  - `TestJWTGenerationAndValidation`: Validates JWT token generation, claims extraction, and tampering detection.
 - `internal/delivery/http/middleware`:
-  - `TestAuthMiddleware`: ทดสอบ Header ถูกต้อง, ขาด Header, และ Token ปลอม
+  - `TestAuthMiddleware`: Validates authorization header presence, bearer token parsing, and token rejection scenarios.
 - `internal/usecase`:
-  - `TestStaffUseCase_CreateAndLogin`: ทดสอบสร้างบัญชีสำเร็จ, สร้างซ้ำ (Duplicate), รหัสผ่านผิด, และต่างโรงพยาบาล
-  - `TestPatientUseCase_DataIsolationAndHIS`: ทดสอบการค้นหาปกติ, **การล็อคสิทธิ์แยกโรงพยาบาล (Hospital Data Isolation)**, และการดึงข้อมูลจาก External HIS
+  - `TestStaffUseCase_CreateAndLogin`: Validates staff account creation, duplicate username rejection, credential matching, and cross-hospital login validation.
+  - `TestPatientUseCase_DataIsolationAndHIS`: Validates intra-hospital patient searches, **strictly verifies hospital-level data isolation boundaries**, and tests external HIS synchronization fallback.
 
 ---
 
-## 6. API Specifications & Swagger UI
+## 6. API Specifications & Interactive Documentation
 
 ### 6.1 Interactive Swagger UI Documentation
-ระบบมาพร้อมกับ Swagger UI (OpenAPI 2.0 / 3.0) ซึ่งสามารถเปิดทดสอบ API ผ่าน Web Browser ได้โดยตรง:
-* **URL:** `http://localhost:5000/swagger/index.html` (หรือผ่าน Nginx ที่ `http://localhost/swagger/index.html`)
-* รองรับการกด **Authorize** ใส่ `Bearer <token>` เพื่อทดสอบ API `/patient/search` ได้ทันที
+
+The API includes embedded interactive Swagger documentation:
+- **Direct URL:** `http://localhost:5000/swagger/index.html`
+- **Via Nginx:** `http://localhost/swagger/index.html`
+- Supports interactive testing with Bearer Token Authorization (`Authorize` button).
 
 ---
 
-### 6.2 Health Check
+### 6.2 Health Check Endpoint
+
 - **Endpoint:** `GET /health`
-- **Response:**
+- **Response (200 OK):**
   ```json
   {
     "service": "hospital-middleware-api",
@@ -153,7 +158,8 @@ go test -v ./...
 
 ---
 
-### 6.2 สร้างบัญชีเจ้าหน้าที่ (`/staff/create`)
+### 6.3 Staff Registration (`POST /staff/create`)
+
 - **Endpoint:** `POST /staff/create`
 - **Headers:** `Content-Type: application/json`
 - **Request Body:**
@@ -171,9 +177,9 @@ go test -v ./...
     "success": true,
     "message": "Staff account created successfully",
     "data": {
-      "id": "c1f7a08b-...",
+      "id": "c1f7a08b-1234-4567-89ab-cdef01234567",
       "username": "nurse_somying",
-      "hospital_id": "9b1deb4d-...",
+      "hospital_id": "9b1deb4d-5678-4321-8765-abcdefabcdef",
       "full_name": "Somying Raksa",
       "created_at": "2026-09-15T00:00:00Z"
     }
@@ -182,7 +188,8 @@ go test -v ./...
 
 ---
 
-### 6.3 เข้าสู่ระบบของเจ้าหน้าที่ (`/staff/login`)
+### 6.4 Staff Authentication (`POST /staff/login`)
+
 - **Endpoint:** `POST /staff/login`
 - **Headers:** `Content-Type: application/json`
 - **Request Body:**
@@ -199,27 +206,33 @@ go test -v ./...
     "success": true,
     "message": "Authentication successful",
     "data": {
-      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6...",
-      "staff_id": "c1f7a08b-...",
-      "username": "nurse_somying",
-      "hospital_id": "9b1deb4d-...",
-      "hospital_name": "Hospital A"
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+      "token_type": "Bearer",
+      "expires_in": 86400,
+      "staff": {
+        "id": "c1f7a08b-1234-4567-89ab-cdef01234567",
+        "username": "nurse_somying",
+        "hospital_id": "9b1deb4d-5678-4321-8765-abcdefabcdef",
+        "full_name": "Somying Raksa"
+      }
     }
   }
   ```
 
 ---
 
-### 6.4 ค้นหาข้อมูลคนไข้ (`/patient/search`)
-- **Endpoint:** `GET /patient/search` หรือ `POST /patient/search`
+### 6.5 Patient Search (`GET /patient/search` or `POST /patient/search`)
+
+- **Endpoint:** `GET /patient/search` or `POST /patient/search`
 - **Headers:**
   - `Authorization: Bearer <JWT_TOKEN>`
-- **Query Parameters (ทุกฟิลด์เป็น Optional):**
-  - `national_id` (เช่น `1100100111111`)
-  - `passport_id` (เช่น `AA123456`)
-  - `first_name` (ค้นหาทั้งชื่อไทยและอังกฤษ)
-  - `last_name` (ค้นหาทั้งนามสกุลไทยและอังกฤษ)
-  - `date_of_birth` (รูปแบบ `YYYY-MM-DD`)
+- **Query Parameters (All fields are optional):**
+  - `national_id` (e.g. `1100100111111`)
+  - `passport_id` (e.g. `AA123456`)
+  - `first_name` (searches Thai and English first names)
+  - `middle_name` (searches Thai and English middle names)
+  - `last_name` (searches Thai and English last names)
+  - `date_of_birth` (format: `YYYY-MM-DD`)
   - `phone_number`
   - `email`
   - `patient_hn`
@@ -228,27 +241,26 @@ go test -v ./...
   {
     "success": true,
     "message": "Patients retrieved successfully",
-    "data": {
-      "total": 1,
-      "patients": [
-        {
-          "id": "e4eaaaf2-...",
-          "hospital_id": "9b1deb4d-...",
-          "patient_hn": "HN-001234",
-          "national_id": "1100100111111",
-          "passport_id": "",
-          "first_name_th": "สมชาย",
-          "middle_name_th": "",
-          "last_name_th": "ใจดี",
-          "first_name_en": "Somchai",
-          "middle_name_en": "",
-          "last_name_en": "Jaidee",
-          "date_of_birth": "1990-05-15",
-          "gender": "M",
-          "phone_number": "0812345678",
-          "email": "somchai@example.com"
-        }
-      ]
-    }
+    "data": [
+      {
+        "id": "e4eaaaf2-0000-0000-0000-111122223333",
+        "hospital_id": "9b1deb4d-5678-4321-8765-abcdefabcdef",
+        "patient_hn": "HN-001234",
+        "national_id": "1100100111111",
+        "passport_id": "AA123456",
+        "first_name_th": "สมชาย",
+        "middle_name_th": "",
+        "last_name_th": "ใจดี",
+        "first_name_en": "Somchai",
+        "middle_name_en": "",
+        "last_name_en": "Jaidee",
+        "date_of_birth": "1990-05-15T00:00:00Z",
+        "gender": "M",
+        "phone_number": "0812345678",
+        "email": "somchai@example.com",
+        "created_at": "2026-09-15T00:00:00Z",
+        "updated_at": "2026-09-15T00:00:00Z"
+      }
+    ]
   }
   ```
