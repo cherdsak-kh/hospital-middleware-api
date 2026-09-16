@@ -1,6 +1,8 @@
 .git
 .gitignore
 .env
+docs/
+*.md
 postgres_data/
 *.exe
 *.out

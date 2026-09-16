@@ -89,11 +89,18 @@ flowchart TD
 
 ```text
 hospital-middleware-api/
+├── api/
+│   └── docs/                        # Swagger 2.0 / OpenAPI generated spec (docs.go, swagger.json, swagger.yaml)
 ├── cmd/
 │   └── server/
 │       └── main.go                  # Application entrypoint & dependency injection
 ├── config/
 │   └── config.go                    # Environment variable loader (.env & system environment)
+├── docs/                            # Project planning, architecture diagrams, test reports (Markdown)
+│   ├── architecture_and_schema.md   # Architecture design and ER model
+│   ├── deliverables_en.md           # Submission documentation (English)
+│   ├── deliverables_th.md           # Submission documentation (Thai)
+│   └── test_report.md               # QA test report & test coverage matrix
 ├── internal/
 │   ├── domain/                      # Domain entities, DTOs, and interface contracts
 │   │   ├── hospital.go              # Hospital entity & interfaces
@@ -127,11 +134,6 @@ hospital-middleware-api/
 │   │   └── jwt_test.go              # Unit tests for JWT utility
 │   └── response/
 │       └── response.go              # Standardized JSON response envelope
-├── docs/                            # Documentation assets
-│   ├── architecture_and_schema.md   # Architecture design and ER model
-│   ├── docs.go                      # Swagger generated Go file
-│   ├── swagger.json                 # OpenAPI 2.0 specification
-│   └── swagger.yaml                 # OpenAPI 2.0 YAML specification
 ├── migrations/
 │   └── 000001_init_schema.up.sql    # DDL script with composite index definitions
 ├── nginx/                           # Reverse proxy configuration

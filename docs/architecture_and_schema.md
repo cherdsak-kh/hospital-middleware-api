@@ -72,11 +72,14 @@ flowchart TD
 
 ```text
 hospital-middleware-api/
+├── api/
+│   └── docs/                       # โค้ดและไฟล์ Specification ของ Swagger (docs.go, swagger.json, swagger.yaml)
 ├── cmd/
 │   └── server/
 │       └── main.go                 # จุดเริ่มต้นของแอปพลิเคชัน (Entry point)
 ├── config/
 │   └── config.go                   # การโหลด Environment Variables
+├── docs/                           # เอกสารสถาปัตยกรรม, แผนพัฒนา, และรายงานผลการทดสอบ (Markdown)
 ├── internal/
 │   ├── domain/                     # Domain Entities (structs) และ Interfaces
 │   ├── repository/                 # Data Access Layer (ติดต่อ PostgreSQL)
@@ -89,7 +92,6 @@ hospital-middleware-api/
 │   └── response/                   # Standardized JSON Response Structs
 ├── migrations/                     # SQL DDL Scripts สำหรับสร้างตาราง
 ├── nginx/                          # Nginx Configuration
-├── docs/                           # เอกสารประกอบการพัฒนา (เช่น Architecture, API Spec)
 ├── Dockerfile                      # คำสั่งสร้าง Docker Image สำหรับ Go API
 └── docker-compose.yml              # ไฟล์กำหนด Services สำหรับรันโปรเจกต์ (Go, Postgres, Nginx)
 ```

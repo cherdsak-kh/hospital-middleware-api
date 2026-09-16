@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/cherdsak-kh/hospital-middleware-api/config"
-	_ "github.com/cherdsak-kh/hospital-middleware-api/docs"
+	_ "github.com/cherdsak-kh/hospital-middleware-api/api/docs"
 	"github.com/cherdsak-kh/hospital-middleware-api/internal/delivery/http/middleware"
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"

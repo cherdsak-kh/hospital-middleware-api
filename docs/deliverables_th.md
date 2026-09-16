@@ -89,11 +89,18 @@ flowchart TD
 
 ```text
 hospital-middleware-api/
+├── api/
+│   └── docs/                        # Swagger 2.0 / OpenAPI generated spec (docs.go, swagger.json, swagger.yaml)
 ├── cmd/
 │   └── server/
 │       └── main.go                  # จุดเริ่มต้นของแอปพลิเคชันและการทำ Dependency Injection
 ├── config/
 │   └── config.go                    # โหลดค่า Environment Variables (.env และ System Environment)
+├── docs/                            # เอกสารประกอบการพัฒนา (Markdown)
+│   ├── deliverables_en.md           # เอกสารฉบับภาษาอังกฤษ (สำหรับส่งตรวจ)
+│   ├── deliverables_th.md           # เอกสารฉบับภาษาไทย
+│   ├── architecture_and_schema.md   # รายละเอียดสถาปัตยกรรมและ Schema
+│   └── test_report.md               # รายงานผลการทดสอบ QA & Test Coverage 100%
 ├── internal/
 │   ├── domain/                      # Domain Entities, DTOs และ Interfaces
 │   │   ├── hospital.go              # โมเดลและสัญญา Interface ของ Hospital
@@ -127,13 +134,6 @@ hospital-middleware-api/
 │   │   └── jwt_test.go              # Unit Tests สำหรับฟังก์ชัน JWT
 │   └── response/
 │       └── response.go              # โครงสร้าง JSON Response มาตรฐาน
-├── docs/                            # เอกสารประกอบการพัฒนา
-│   ├── deliverables_en.md           # เอกสารฉบับภาษาอังกฤษ (สำหรับส่งตรวจ)
-│   ├── deliverables_th.md           # เอกสารฉบับภาษาไทย
-│   ├── architecture_and_schema.md   # รายละเอียดสถาปัตยกรรมและ Schema
-│   ├── docs.go                      # ไฟล์ Go สำหรับ Swagger
-│   ├── swagger.json                 # OpenAPI Specification ในรูปแบบ JSON
-│   └── swagger.yaml                 # OpenAPI Specification ในรูปแบบ YAML
 ├── migrations/
 │   └── 000001_init_schema.up.sql    # สคริปต์ SQL DDL สร้างตารางและ Composite Indexes
 ├── nginx/                           # การตั้งค่า Nginx Reverse Proxy

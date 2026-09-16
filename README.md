@@ -23,11 +23,18 @@ The codebase strictly follows Clean Architecture (Layered Architecture) principl
 
 ```text
 hospital-middleware-api/
+├── api/
+│   └── docs/                       # Swagger 2.0 / OpenAPI generated spec (docs.go, swagger.json, swagger.yaml)
 ├── cmd/
 │   └── server/
 │       └── main.go                 # Application entry point: config loading, DB connection, DI wiring
 ├── config/
 │   └── config.go                   # Environment variables and configuration loader
+├── docs/                           # Project planning, architecture diagrams, test reports (Markdown)
+│   ├── architecture_and_schema.md
+│   ├── deliverables_en.md
+│   ├── deliverables_th.md
+│   └── test_report.md
 ├── internal/
 │   ├── domain/                     # Core business entities, DTOs, and interface contracts
 │   │   ├── hospital.go
