@@ -2,6 +2,7 @@ package http
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/cherdsak-kh/hospital-middleware-api/config"
 	_ "github.com/cherdsak-kh/hospital-middleware-api/docs"
@@ -10,6 +11,8 @@ import (
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
+
+var serverStartTime = time.Now()
 
 // SetupRouter sets up Gin engine routes, middleware, and handlers
 func SetupRouter(
@@ -50,9 +53,11 @@ func SetupRouter(
 
 	// Health check endpoint
 	router.GET("/health", func(c *gin.Context) {
+		uptime := time.Since(serverStartTime).Round(time.Second).String()
 		c.JSON(http.StatusOK, gin.H{
 			"status":  "ok",
 			"service": "hospital-middleware-api",
+			"uptime":  uptime,
 		})
 	})
 

@@ -146,7 +146,8 @@ go test -v ./...
   ```json
   {
     "service": "hospital-middleware-api",
-    "status": "ok"
+    "status": "ok",
+    "uptime": "12m34s"
   }
   ```
 
