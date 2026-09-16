@@ -40,6 +40,14 @@ func SetupRouter(
 		c.Next()
 	})
 
+	// Root endpoint
+	router.GET("/", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"service": "hospital-middleware-api",
+			"status":  "running",
+		})
+	})
+
 	// Health check endpoint
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{

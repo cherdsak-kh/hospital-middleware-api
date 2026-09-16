@@ -57,6 +57,8 @@ func main() {
 
 	// 8. Start HTTP Server
 	log.Printf("hospital-middleware-api server running on port %s in %s mode\n", cfg.Port, cfg.AppEnv)
+	log.Printf("Health Check: http://localhost:%s/health\n", cfg.Port)
+	log.Printf("Swagger Documentation: http://localhost:%s/swagger/index.html\n", cfg.Port)
 	if err := router.Run(":" + cfg.Port); err != nil {
 		log.Fatalf("Fatal: server terminated unexpectedly: %v\n", err)
 	}
