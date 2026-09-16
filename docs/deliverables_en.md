@@ -297,6 +297,23 @@ The API supports standardized JSON responses using the following envelope:
   }
   ```
 
+* **Endpoint Sequence Diagram:**
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Client as Client / Monitoring
+    participant Nginx as Nginx Proxy (:80)
+    participant Router as Gin Engine (:5000)
+    participant Handler as Health Handler
+
+    Client->>Nginx: GET /health
+    Nginx->>Router: Forward GET /health
+    Router->>Handler: Route to Health Handler
+    Handler->>Handler: Calculate Uptime (time.Since(startTime))
+    Handler-->>Nginx: 200 OK {"service": "hospital-middleware-api", "status": "ok", "uptime": "..."}
+    Nginx-->>Client: 200 OK JSON Response
+```
+
 ---
 
 ### 5.4 Create Hospital Staff (`POST /staff/create`)
@@ -328,6 +345,47 @@ The API supports standardized JSON responses using the following envelope:
 * **Error Responses:**
   * `400 Bad Request`: Invalid payload or missing required fields (`username`, `password`, `hospital`).
   * `409 Conflict`: Username already exists in the system.
+
+* **Endpoint Sequence Diagram:**
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Admin as Hospital Administrator
+    participant Nginx as Nginx Proxy (:80)
+    participant Handler as Staff Handler
+    participant UseCase as Staff UseCase
+    participant StaffRepo as Staff Repository
+    participant HospRepo as Hospital Repository
+    participant DB as PostgreSQL 15
+
+    Admin->>Nginx: POST /staff/create {"username", "password", "hospital"}
+    Nginx->>Handler: Forward Request (:5000)
+    Handler->>Handler: Bind and Validate JSON Payload
+    alt Validation Failed (Missing Fields)
+        Handler-->>Admin: 400 Bad Request
+    else Valid Payload
+        Handler->>UseCase: CreateStaff(req)
+        UseCase->>StaffRepo: FindByUsername(username)
+        StaffRepo->>DB: SELECT * FROM staffs WHERE username = ?
+        DB-->>StaffRepo: Result
+        alt Username Already Exists
+            StaffRepo-->>UseCase: Existing staff record found
+            UseCase-->>Handler: ErrConflict (Username already exists)
+            Handler-->>Admin: 409 Conflict
+        else Username Available
+            UseCase->>HospRepo: FindOrCreateHospital(hospital_code)
+            HospRepo->>DB: SELECT or INSERT INTO hospitals
+            DB-->>HospRepo: Hospital Record (UUID)
+            UseCase->>UseCase: Hash Password via bcrypt(cost=10)
+            UseCase->>StaffRepo: Create(staff_entity)
+            StaffRepo->>DB: INSERT INTO staffs (id, hospital_id, username, password_hash)
+            DB-->>StaffRepo: Created
+            StaffRepo-->>UseCase: Staff Saved
+            UseCase-->>Handler: Staff Created DTO (No Password)
+            Handler-->>Admin: 201 Created JSON
+        end
+    end
+```
 
 ---
 
@@ -362,6 +420,44 @@ The API supports standardized JSON responses using the following envelope:
   ```
 * **Error Responses:**
   * `401 Unauthorized`: Invalid credentials or hospital mismatch.
+
+* **Endpoint Sequence Diagram:**
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Staff as Hospital Staff
+    participant Nginx as Nginx Proxy (:80)
+    participant Handler as Staff Handler
+    participant UseCase as Staff UseCase
+    participant StaffRepo as Staff Repository
+    participant JWT as JWT Utility (HMAC-SHA256)
+    participant DB as PostgreSQL 15
+
+    Staff->>Nginx: POST /staff/login {"username", "password", "hospital"}
+    Nginx->>Handler: Forward Request (:5000)
+    Handler->>Handler: Bind and Validate JSON Payload
+    Handler->>UseCase: LoginStaff(req)
+    UseCase->>StaffRepo: FindByUsernameAndHospital(username, hospital_code)
+    StaffRepo->>DB: SELECT s.* FROM staffs s JOIN hospitals h ON s.hospital_id = h.id WHERE s.username = ? AND h.code = ?
+    DB-->>StaffRepo: Staff Record and Hospital
+    alt Staff or Hospital Not Found
+        StaffRepo-->>UseCase: Record Not Found
+        UseCase-->>Handler: ErrUnauthorized
+        Handler-->>Staff: 401 Unauthorized (Invalid credentials)
+    else Staff Found
+        UseCase->>UseCase: bcrypt.CompareHashAndPassword(hash, password)
+        alt Password Mismatch
+            UseCase-->>Handler: ErrUnauthorized
+            Handler-->>Staff: 401 Unauthorized (Invalid credentials)
+        else Password Valid
+            UseCase->>JWT: GenerateToken(staff_id, username, hospital_id)
+            Note over JWT: Embed claims and sign with HMAC-SHA256 Secret
+            JWT-->>UseCase: Signed JWT Token String
+            UseCase-->>Handler: Login Response DTO with Token
+            Handler-->>Staff: 200 OK (JWT Token and Staff Info)
+        end
+    end
+```
 
 ---
 
@@ -407,6 +503,70 @@ The API supports standardized JSON responses using the following envelope:
   ```
 * **Error Responses:**
   * `401 Unauthorized`: Missing, expired, or invalid authorization header.
+
+* **Endpoint Sequence Diagram:**
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Staff as Hospital Staff (Authenticated)
+    participant Nginx as Nginx Proxy (:80)
+    participant Auth as Auth Middleware
+    participant Handler as Patient Handler
+    participant UseCase as Patient UseCase
+    participant Repo as Patient Repository
+    participant HIS as Hospital A External API
+    participant DB as PostgreSQL 15
+
+    Staff->>Nginx: GET /patient/search?national_id=... (Header: Authorization: Bearer token)
+    Nginx->>Auth: Forward to Protected Route (:5000)
+    
+    rect rgb(240, 248, 255)
+    Note over Auth: Step 1: Token Verification and Context Injection
+    Auth->>Auth: Parse and Validate HMAC-SHA256 Signature
+    alt Missing or Invalid Token
+        Auth-->>Staff: 401 Unauthorized
+    else Valid Token
+        Auth->>Auth: Extract hospital_id from JWT claims
+        Auth->>Handler: Inject hospital_id into Gin Context (c.Set)
+    end
+    end
+
+    Handler->>Handler: Parse Optional Query Parameters
+    Handler->>UseCase: SearchPatients(ctx, hospital_id, filters)
+
+    rect rgb(245, 255, 245)
+    Note over UseCase,DB: Step 2: Database Search with Mandatory Hospital Isolation
+    UseCase->>Repo: Search(hospital_id, filters)
+    Repo->>DB: SELECT * FROM patients WHERE hospital_id = :auth_hospital_id AND (national_id = ? OR ...)
+    DB-->>Repo: Query Result Set
+    end
+
+    alt Patient Found in Local Database
+        Repo-->>UseCase: Return Local Patient Records
+        UseCase-->>Handler: Patient Response List
+        Handler-->>Staff: 200 OK (Patient Records)
+    else Not Found Locally (Candidate for HIS Sync)
+        Repo-->>UseCase: Empty Result Set []
+        
+        rect rgb(255, 250, 240)
+        Note over UseCase,HIS: Step 3: External HIS Fallback Integration
+        UseCase->>HIS: GET https://hospital-a.api.co.th/patient/search/{id}
+        alt Found in External Hospital A API
+            HIS-->>UseCase: 200 OK (External Patient JSON)
+            UseCase->>Repo: CreatePatient(bound to authenticated hospital_id)
+            Repo->>DB: INSERT INTO patients (id, hospital_id, national_id, hn, ...)
+            DB-->>Repo: Saved
+            Repo-->>UseCase: Synced Patient Record
+            UseCase-->>Handler: Synced Patient List
+            Handler-->>Staff: 200 OK (Synced Patient Record)
+        else Not Found in HIS / External Error
+            HIS-->>UseCase: 404 Not Found
+            UseCase-->>Handler: Empty List []
+            Handler-->>Staff: 200 OK (Empty List: [])
+        end
+        end
+    end
+```
 
 ---
 

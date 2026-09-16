@@ -66,7 +66,169 @@ flowchart TD
     HISClient --> ExternalAPI
 ```
 
-### 1.3 Project Directory Structure
+### 1.3 Sequence Diagrams ตามแต่ละ Endpoint
+
+#### 1.3.1 ตรวจสอบสถานะระบบ (`GET /health`)
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Client as Client / Monitoring
+    participant Nginx as Nginx Proxy (:80)
+    participant Router as Gin Engine (:5000)
+    participant Handler as Health Handler
+
+    Client->>Nginx: GET /health
+    Nginx->>Router: Forward GET /health
+    Router->>Handler: ส่งต่อให้ Health Handler
+    Handler->>Handler: คำนวณ Uptime (time.Since)
+    Handler-->>Nginx: 200 OK {"service": "hospital-middleware-api", "status": "ok", "uptime": "..."}
+    Nginx-->>Client: 200 OK JSON Response
+```
+
+#### 1.3.2 สร้างบัญชีเจ้าหน้าที่ (`POST /staff/create`)
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Admin as Hospital Administrator
+    participant Nginx as Nginx Proxy (:80)
+    participant Handler as Staff Handler
+    participant UseCase as Staff UseCase
+    participant StaffRepo as Staff Repository
+    participant HospRepo as Hospital Repository
+    participant DB as PostgreSQL 15
+
+    Admin->>Nginx: POST /staff/create {"username", "password", "hospital"}
+    Nginx->>Handler: Forward Request (:5000)
+    Handler->>Handler: ตรวจสอบความครบถ้วนของ JSON
+    alt ข้อมูลไม่ครบถ้วน
+        Handler-->>Admin: 400 Bad Request
+    else ข้อมูลถูกต้อง
+        Handler->>UseCase: CreateStaff(req)
+        UseCase->>StaffRepo: FindByUsername(username)
+        StaffRepo->>DB: SELECT * FROM staffs WHERE username = ?
+        DB-->>StaffRepo: Result
+        alt Username ซ้ำในระบบ
+            StaffRepo-->>UseCase: พบชื่อผู้ใช้เดิม
+            UseCase-->>Handler: ErrConflict (Username already exists)
+            Handler-->>Admin: 409 Conflict
+        else Username ไม่ซ้ำ
+            UseCase->>HospRepo: FindOrCreateHospital(hospital_code)
+            HospRepo->>DB: SELECT or INSERT INTO hospitals
+            DB-->>HospRepo: Hospital Record (UUID)
+            UseCase->>UseCase: แฮชรหัสผ่านด้วย bcrypt(cost=10)
+            UseCase->>StaffRepo: Create(staff_entity)
+            StaffRepo->>DB: INSERT INTO staffs (id, hospital_id, username, password_hash)
+            DB-->>StaffRepo: บันทึกสำเร็จ
+            StaffRepo-->>UseCase: Staff Saved
+            UseCase-->>Handler: Staff Created DTO (ไม่ส่งรหัสผ่านกลับ)
+            Handler-->>Admin: 201 Created JSON
+        end
+    end
+```
+
+#### 1.3.3 เจ้าหน้าที่เข้าสู่ระบบ (`POST /staff/login`)
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Staff as Hospital Staff
+    participant Nginx as Nginx Proxy (:80)
+    participant Handler as Staff Handler
+    participant UseCase as Staff UseCase
+    participant StaffRepo as Staff Repository
+    participant JWT as JWT Utility (HMAC-SHA256)
+    participant DB as PostgreSQL 15
+
+    Staff->>Nginx: POST /staff/login {"username", "password", "hospital"}
+    Nginx->>Handler: Forward Request (:5000)
+    Handler->>Handler: ตรวจสอบความครบถ้วนของ JSON
+    Handler->>UseCase: LoginStaff(req)
+    UseCase->>StaffRepo: FindByUsernameAndHospital(username, hospital_code)
+    StaffRepo->>DB: SELECT s.* FROM staffs s JOIN hospitals h ON s.hospital_id = h.id WHERE s.username = ? AND h.code = ?
+    DB-->>StaffRepo: Staff Record และ Hospital
+    alt ไม่พบข้อมูลเจ้าหน้าที่หรือโรงพยาบาล
+        StaffRepo-->>UseCase: ไม่พบข้อมูล
+        UseCase-->>Handler: ErrUnauthorized
+        Handler-->>Staff: 401 Unauthorized (Invalid credentials)
+    else พบข้อมูลเจ้าหน้าที่
+        UseCase->>UseCase: bcrypt.CompareHashAndPassword(hash, password)
+        alt รหัสผ่านไม่ถูกต้อง
+            UseCase-->>Handler: ErrUnauthorized
+            Handler-->>Staff: 401 Unauthorized (Invalid credentials)
+        else รหัสผ่านถูกต้อง
+            UseCase->>JWT: GenerateToken(staff_id, username, hospital_id)
+            Note over JWT: ฝัง Claims และเซ็นชื่อด้วย HMAC-SHA256 Secret
+            JWT-->>UseCase: Signed JWT Token String
+            UseCase-->>Handler: ข้อมูล Login และ Token
+            Handler-->>Staff: 200 OK (JWT Token และข้อมูล Staff)
+        end
+    end
+```
+
+#### 1.3.4 ค้นหาข้อมูลคนไข้และการแยกข้อมูล (`GET /patient/search`)
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Staff as Hospital Staff (Authenticated)
+    participant Nginx as Nginx Proxy (:80)
+    participant Auth as Auth Middleware
+    participant Handler as Patient Handler
+    participant UseCase as Patient UseCase
+    participant Repo as Patient Repository
+    participant HIS as Hospital A External API
+    participant DB as PostgreSQL 15
+
+    Staff->>Nginx: GET /patient/search?national_id=... (Header: Authorization: Bearer token)
+    Nginx->>Auth: ส่งต่อให้ Protected Route (:5000)
+    
+    rect rgb(240, 248, 255)
+    Note over Auth: ขั้นตอนที่ 1: ตรวจสอบสิทธิ์และฉีด Context
+    Auth->>Auth: ตรวจสอบลายเซ็น HMAC-SHA256 ของ Token
+    alt ไม่มี Token หรือ Token ปลอม
+        Auth-->>Staff: 401 Unauthorized
+    else Token ถูกต้อง
+        Auth->>Auth: ดึงค่า hospital_id จาก Claims
+        Auth->>Handler: ฉีด hospital_id เข้าสู่ Gin Context (c.Set)
+    end
+    end
+
+    Handler->>Handler: แยกค่าตัวกรองการค้นหา (Query Parameters)
+    Handler->>UseCase: SearchPatients(ctx, hospital_id, filters)
+
+    rect rgb(245, 255, 245)
+    Note over UseCase,DB: ขั้นตอนที่ 2: ค้นหาในฐานข้อมูลโดยบังคับสิทธิ์โรงพยาบาล
+    UseCase->>Repo: Search(hospital_id, filters)
+    Repo->>DB: SELECT * FROM patients WHERE hospital_id = :auth_hospital_id AND (national_id = ? OR ...)
+    DB-->>Repo: ผลลัพธ์จากการ Query
+    end
+
+    alt พบข้อมูลคนไข้ในฐานข้อมูลภายใน
+        Repo-->>UseCase: ส่งคืนรายการคนไข้ในสังกัด
+        UseCase-->>Handler: ข้อมูลคนไข้
+        Handler-->>Staff: 200 OK (รายการข้อมูลคนไข้)
+    else ไม่พบข้อมูลในระบบ (เข้าสู่เงื่อนไข External HIS Sync)
+        Repo-->>UseCase: ส่งคืน Array ว่าง []
+        
+        rect rgb(255, 250, 240)
+        Note over UseCase,HIS: ขั้นตอนที่ 3: ดึงข้อมูลจาก External HIS อัตโนมัติ
+        UseCase->>HIS: GET https://hospital-a.api.co.th/patient/search/{id}
+        alt พบข้อมูลใน Hospital A
+            HIS-->>UseCase: 200 OK (ข้อมูลคนไข้ JSON)
+            UseCase->>Repo: CreatePatient(ผูกกับ hospital_id ของผู้ค้นหา)
+            Repo->>DB: INSERT INTO patients (id, hospital_id, national_id, hn, ...)
+            DB-->>Repo: บันทึกสำเร็จ
+            Repo-->>UseCase: ข้อมูลคนไข้ที่ซิงค์แล้ว
+            UseCase-->>Handler: รายการคนไข้
+            Handler-->>Staff: 200 OK (ข้อมูลคนไข้ที่ซิงค์จาก HIS)
+        else ไม่พบใน HIS หรือเชื่อมต่อไม่ได้
+            HIS-->>UseCase: 404 Not Found
+            UseCase-->>Handler: Array ว่าง []
+            Handler-->>Staff: 200 OK (ผลลัพธ์ว่าง: [])
+        end
+        end
+    end
+```
+
+### 1.4 Project Directory Structure
 
 โครงสร้างโฟลเดอร์ถูกจัดระเบียบตามแนวทางของ Clean Architecture:
 
